@@ -1,0 +1,73 @@
+package com.rhitam.jobtracker.rules;
+
+import com.rhitam.jobtracker.common.exception.NotFoundException;
+import com.rhitam.jobtracker.rules.model.RuleRequest;
+import jakarta.validation.Valid;
+import java.time.Clock;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/rules")
+public class RuleController {
+
+    private final RuleRepository repository;
+    private final RuleValidator validator;
+    private final Clock clock;
+
+    public RuleController(RuleRepository repository, RuleValidator validator, Clock clock) {
+        this.repository = repository;
+        this.validator = validator;
+        this.clock = clock;
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Rule create(@Valid @RequestBody RuleRequest request) {
+        validator.validate(request);
+        return repository.save(new Rule(request.name(), request.trigger(), request.conditions(),
+                request.actions(), request.enabled(), clock.instant()));
+    }
+
+    @GetMapping
+    public List<Rule> list() {
+        return repository.findAllByOrderByCreatedAtDesc();
+    }
+
+    @PostMapping("/{id}/enable")
+    @Transactional
+    public Rule enable(@PathVariable UUID id) {
+        return setEnabled(id, true);
+    }
+
+    @PostMapping("/{id}/disable")
+    @Transactional
+    public Rule disable(@PathVariable UUID id) {
+        return setEnabled(id, false);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id) {
+        if (!repository.existsById(id)) {
+            throw new NotFoundException("Rule " + id + " not found");
+        }
+        repository.deleteById(id);
+    }
+
+    private Rule setEnabled(UUID id, boolean enabled) {
+        Rule rule = repository.findById(id).orElseThrow(() -> new NotFoundException("Rule " + id + " not found"));
+        rule.setEnabled(enabled);
+        return rule;
+    }
+}

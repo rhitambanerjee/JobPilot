@@ -1,0 +1,83 @@
+package com.rhitam.jobtracker.emails;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import java.time.Instant;
+import java.util.UUID;
+
+/** An email to a third party (HR / careers). Written by the rule action, delivered later by OutgoingEmailSender. */
+@Entity
+@Table(name = "outgoing_emails")
+public class OutgoingEmail {
+
+    public enum Status { PENDING, SENT, FAILED }
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    private UUID applicationId;
+    private UUID ruleId;
+    private String toAddress;
+    private String subject;
+    private String body;
+
+    @Enumerated(EnumType.STRING)
+    private Status status;
+
+    private int attempts;
+    private String lastError;
+    private Instant createdAt;
+    private Instant sentAt;
+
+    protected OutgoingEmail() {
+    }
+
+    public OutgoingEmail(UUID applicationId, UUID ruleId, String toAddress, String subject, String body, Instant now) {
+        this.applicationId = applicationId;
+        this.ruleId = ruleId;
+        this.toAddress = toAddress;
+        this.subject = subject;
+        this.body = body;
+        this.status = Status.PENDING;
+        this.createdAt = now;
+    }
+
+    public void markSent(Instant now) {
+        this.status = Status.SENT;
+        this.attempts++;
+        this.lastError = null;
+        this.sentAt = now;
+    }
+
+    /** Stays PENDING (retried on the next poll) until maxAttempts is reached. */
+    public void recordFailure(String error, int maxAttempts) {
+        this.attempts++;
+        this.lastError = error;
+        if (attempts >= maxAttempts) {
+            this.status = Status.FAILED;
+        }
+    }
+
+    public void failPermanently(String reason) {
+        this.status = Status.FAILED;
+        this.lastError = reason;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getApplicationId() { return applicationId; }
+    public UUID getRuleId() { return ruleId; }
+    public String getToAddress() { return toAddress; }
+    public String getSubject() { return subject; }
+    public String getBody() { return body; }
+    public Status getStatus() { return status; }
+    public int getAttempts() { return attempts; }
+    public String getLastError() { return lastError; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getSentAt() { return sentAt; }
+}

@@ -1,0 +1,25 @@
+spring:
+  jpa:
+    show-sql: true
+  # Local mail catcher (docker compose up -d mailpit). Read the emails at http://localhost:8025
+  mail:
+    host: localhost
+    port: 1025
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+
+tracker:
+  outbox:
+    poll-ms: 500
+  jobs:
+    poll-ms: 500
+  stale:
+    days: 1
+    cron: "0 * * * * *"   # every minute, to see it work during development
+  notifications:
+    email-poll-ms: 2000
+
+logging:
+  level:
+    com.rhitam.jobtracker: DEBUG

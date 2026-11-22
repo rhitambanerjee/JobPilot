@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: job-tracker
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jobtracker}
+    username: ${DB_USER:jobtracker}
+    password: ${DB_PASSWORD:jobtracker}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none   # schema is owned by Flyway
+  flyway:
+    enabled: true
+  # Mail is only active when a host is configured (env var SPRING_MAIL_HOST, or the dev profile).
+  # Typical real setup: SPRING_MAIL_HOST=smtp.gmail.com SPRING_MAIL_PORT=587
+  #                     SPRING_MAIL_USERNAME=you@gmail.com SPRING_MAIL_PASSWORD=<app password>
+  mail:
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+tracker:
+  scheduling:
+    enabled: true
+  outbox:
+    poll-ms: 1000
+    batch-size: 50
+    max-attempts: 5
+  jobs:
+    poll-ms: 1000
+    batch-size: 20
+    max-attempts: 5
+    lock-timeout-seconds: 300
+  stale:
+    days: 1   # emit an application.stale event every day for anything idle at least this long; rules decide what to do
+    cron: "0 0 9 * * *"
+  notifications:
+    email-poll-ms: 5000
+    email-batch-size: 10
+    email-max-attempts: 3
+  # mail:
+  #   from: ...   # defaults to spring.mail.username
+  outgoing:
+    poll-ms: 5000
+    batch-size: 10
+    max-attempts: 3
