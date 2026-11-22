@@ -1,5 +1,6 @@
 package com.rhitam.jobtracker.rules;
 
+import com.rhitam.jobtracker.auth.AuthenticatedUser;
 import com.rhitam.jobtracker.common.exception.NotFoundException;
 import com.rhitam.jobtracker.rules.model.RuleRequest;
 import jakarta.validation.Valid;
@@ -7,6 +8,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,41 +35,44 @@ public class RuleController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Rule create(@Valid @RequestBody RuleRequest request) {
-        validator.validate(request);
-        return repository.save(new Rule(request.name(), request.trigger(), request.conditions(),
+    public Rule create(@AuthenticationPrincipal AuthenticatedUser user, @Valid @RequestBody RuleRequest request) {
+        validator.validate(user.id(), request);
+        return repository.save(new Rule(user.id(), request.name(), request.trigger(), request.conditions(),
                 request.actions(), request.enabled(), clock.instant()));
     }
 
     @GetMapping
-    public List<Rule> list() {
-        return repository.findAllByOrderByCreatedAtDesc();
+    public List<Rule> list(@AuthenticationPrincipal AuthenticatedUser user) {
+        return repository.findByUserIdOrderByCreatedAtDesc(user.id());
     }
 
     @PostMapping("/{id}/enable")
     @Transactional
-    public Rule enable(@PathVariable UUID id) {
-        return setEnabled(id, true);
+    public Rule enable(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id) {
+        return setEnabled(user.id(), id, true);
     }
 
     @PostMapping("/{id}/disable")
     @Transactional
-    public Rule disable(@PathVariable UUID id) {
-        return setEnabled(id, false);
+    public Rule disable(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id) {
+        return setEnabled(user.id(), id, false);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID id) {
-        if (!repository.existsById(id)) {
-            throw new NotFoundException("Rule " + id + " not found");
-        }
-        repository.deleteById(id);
+    @Transactional
+    public void delete(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id) {
+        repository.delete(find(user.id(), id));
     }
 
-    private Rule setEnabled(UUID id, boolean enabled) {
-        Rule rule = repository.findById(id).orElseThrow(() -> new NotFoundException("Rule " + id + " not found"));
+    private Rule setEnabled(UUID userId, UUID id, boolean enabled) {
+        Rule rule = find(userId, id);
         rule.setEnabled(enabled);
         return rule;
+    }
+
+    private Rule find(UUID userId, UUID id) {
+        return repository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new NotFoundException("Rule " + id + " not found"));
     }
 }

@@ -52,8 +52,8 @@ public class SendEmailHandler implements ActionHandler {
 
     /** Runs when a rule is saved: the template must exist and every user placeholder must have a value. */
     @Override
-    public void validate(Map<String, Object> params) {
-        EmailTemplate template = templates.findById(templateId(params))
+    public void validate(UUID userId, Map<String, Object> params) {
+        EmailTemplate template = templates.findVisible(userId, templateId(params))
                 .orElseThrow(() -> new BadRequestException("send_email: template not found"));
         Map<String, String> custom = customValues(params);
         List<String> missing = TemplateRenderer.customPlaceholders(template.getSubject(), template.getBody()).stream()
@@ -66,7 +66,7 @@ public class SendEmailHandler implements ActionHandler {
 
     @Override
     public void execute(ActionContext context) {
-        Application application = applications.get(context.applicationId());
+        Application application = applications.get(context.userId(), context.applicationId());
 
         String to = application.getContactEmail();
         if (to == null || to.isBlank()) {
@@ -75,7 +75,7 @@ public class SendEmailHandler implements ActionHandler {
                     + ". Add the HR or careers address on the application and the email will be queued on the next daily check.");
         }
 
-        EmailTemplate template = templates.findById(templateId(context.params()))
+        EmailTemplate template = templates.findVisible(context.userId(), templateId(context.params()))
                 .orElseThrow(() -> new NonRetryableActionException("The email template for this rule no longer exists"));
 
         Map<String, String> values = new HashMap<>(customValues(context.params()));
@@ -89,7 +89,7 @@ public class SendEmailHandler implements ActionHandler {
 
         String subject = TemplateRenderer.render(template.getSubject(), values).replaceAll("[\\r\\n]+", " ").trim();
         String body = TemplateRenderer.render(template.getBody(), values);
-        outgoing.save(new OutgoingEmail(application.getId(), context.ruleId(), to.trim(), subject, body, clock.instant()));
+        outgoing.save(new OutgoingEmail(context.userId(), application.getId(), context.ruleId(), to.trim(), subject, body, clock.instant()));
     }
 
     private Map<String, String> builtInValues(Application application) {

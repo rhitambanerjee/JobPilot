@@ -30,19 +30,20 @@ class RuleEngineTest {
     private final JobQClient jobQ = mock(JobQClient.class);
     private final RuleEngine engine = new RuleEngine(rules, new ConditionEvaluator(), jobQ);
 
+    private final UUID userId = UUID.randomUUID();
     private final UUID appId = UUID.randomUUID();
     private OutboxEvent interviewEvent;
 
     @BeforeEach
     void setUp() {
-        interviewEvent = new OutboxEvent("APPLICATION", appId, EventTypes.APPLICATION_STAGE_CHANGED,
+        interviewEvent = new OutboxEvent(userId, "APPLICATION", appId, EventTypes.APPLICATION_STAGE_CHANGED,
                 Map.of("toStage", "INTERVIEW"), Instant.now());
         ReflectionTestUtils.setField(interviewEvent, "id", UUID.randomUUID());
         when(jobQ.enqueue(any())).thenReturn(true);
     }
 
     private Rule rule(String eventType, List<Condition> conditions, List<ActionSpec> actions) {
-        Rule rule = new Rule("r", new Trigger(eventType), conditions, actions, true, Instant.now());
+        Rule rule = new Rule(userId, "r", new Trigger(eventType), conditions, actions, true, Instant.now());
         ReflectionTestUtils.setField(rule, "id", UUID.randomUUID());
         return rule;
     }
@@ -52,7 +53,7 @@ class RuleEngineTest {
         Rule rule = rule(EventTypes.APPLICATION_STAGE_CHANGED,
                 List.of(new Condition("toStage", Operator.EQ, "INTERVIEW")),
                 List.of(new ActionSpec("create_checklist", Map.of()), new ActionSpec("create_reminder", Map.of())));
-        when(rules.findByEnabledTrue()).thenReturn(List.of(rule));
+        when(rules.findByUserIdAndEnabledTrue(userId)).thenReturn(List.of(rule));
 
         assertEquals(2, engine.handle(interviewEvent));
 
@@ -67,7 +68,7 @@ class RuleEngineTest {
     @Test
     void ruleForAnotherEventTypeIsIgnored() {
         Rule rule = rule(EventTypes.APPLICATION_STALE, List.of(), List.of(new ActionSpec("create_reminder", Map.of())));
-        when(rules.findByEnabledTrue()).thenReturn(List.of(rule));
+        when(rules.findByUserIdAndEnabledTrue(userId)).thenReturn(List.of(rule));
 
         assertEquals(0, engine.handle(interviewEvent));
         verify(jobQ, never()).enqueue(any());
@@ -78,7 +79,7 @@ class RuleEngineTest {
         Rule rule = rule(EventTypes.APPLICATION_STAGE_CHANGED,
                 List.of(new Condition("toStage", Operator.EQ, "OFFER")),
                 List.of(new ActionSpec("create_reminder", Map.of())));
-        when(rules.findByEnabledTrue()).thenReturn(List.of(rule));
+        when(rules.findByUserIdAndEnabledTrue(userId)).thenReturn(List.of(rule));
 
         assertEquals(0, engine.handle(interviewEvent));
         verify(jobQ, never()).enqueue(any());
@@ -88,14 +89,14 @@ class RuleEngineTest {
     void duplicateEnqueueIsNotCounted() {
         Rule rule = rule(EventTypes.APPLICATION_STAGE_CHANGED, List.of(),
                 List.of(new ActionSpec("create_reminder", Map.of())));
-        when(rules.findByEnabledTrue()).thenReturn(List.of(rule));
+        when(rules.findByUserIdAndEnabledTrue(userId)).thenReturn(List.of(rule));
         when(jobQ.enqueue(any())).thenReturn(false);
 
         assertEquals(0, engine.handle(interviewEvent));
     }
 
     private OutboxEvent staleEvent(String dedupeKey) {
-        OutboxEvent event = new OutboxEvent("APPLICATION", appId, EventTypes.APPLICATION_STALE,
+        OutboxEvent event = new OutboxEvent(userId, "APPLICATION", appId, EventTypes.APPLICATION_STALE,
                 Map.of("dedupeKey", dedupeKey), Instant.now());
         ReflectionTestUtils.setField(event, "id", UUID.randomUUID());
         return event;
@@ -104,7 +105,7 @@ class RuleEngineTest {
     @Test
     void eventsSharingADedupeKeyProduceTheSameJobKey() {
         Rule rule = rule(EventTypes.APPLICATION_STALE, List.of(), List.of(new ActionSpec("create_reminder", Map.of())));
-        when(rules.findByEnabledTrue()).thenReturn(List.of(rule));
+        when(rules.findByUserIdAndEnabledTrue(userId)).thenReturn(List.of(rule));
 
         engine.handle(staleEvent("stale:app1:123"));   // day 7
         engine.handle(staleEvent("stale:app1:123"));   // day 8, same idle stretch, different event id

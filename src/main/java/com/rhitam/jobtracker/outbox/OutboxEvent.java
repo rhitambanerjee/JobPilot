@@ -23,6 +23,7 @@ public class OutboxEvent {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    private UUID userId;
     private String aggregateType;
     private UUID aggregateId;
     private String eventType;
@@ -41,8 +42,9 @@ public class OutboxEvent {
     protected OutboxEvent() {
     }
 
-    public OutboxEvent(String aggregateType, UUID aggregateId, String eventType,
+    public OutboxEvent(UUID userId, String aggregateType, UUID aggregateId, String eventType,
                        Map<String, Object> payload, Instant now) {
+        this.userId = userId;
         this.aggregateType = aggregateType;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
@@ -67,6 +69,7 @@ public class OutboxEvent {
     }
 
     public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
     public String getAggregateType() { return aggregateType; }
     public UUID getAggregateId() { return aggregateId; }
     public String getEventType() { return eventType; }

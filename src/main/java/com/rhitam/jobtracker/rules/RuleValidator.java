@@ -7,6 +7,7 @@ import com.rhitam.jobtracker.rules.model.ActionSpec;
 import com.rhitam.jobtracker.rules.model.Condition;
 import com.rhitam.jobtracker.rules.model.RuleRequest;
 import java.util.Collection;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /** Rejects bad rules at write time so they can't fail later inside the poller. */
@@ -19,7 +20,7 @@ public class RuleValidator {
         this.registry = registry;
     }
 
-    public void validate(RuleRequest request) {
+    public void validate(UUID userId, RuleRequest request) {
         String eventType = request.trigger().eventType();
         if (!EventTypes.ALL.contains(eventType)) {
             throw new BadRequestException("Unknown trigger event '" + eventType + "'. Known: " + EventTypes.ALL);
@@ -48,7 +49,7 @@ public class RuleValidator {
                 throw new BadRequestException(
                         "Unknown action '" + action.type() + "'. Known: " + registry.types());
             }
-            registry.get(action.type()).validate(action.params());
+            registry.get(action.type()).validate(userId, action.params());
         }
     }
 }

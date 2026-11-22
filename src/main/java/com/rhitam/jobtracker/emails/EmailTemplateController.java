@@ -1,11 +1,13 @@
 package com.rhitam.jobtracker.emails;
 
+import com.rhitam.jobtracker.auth.AuthenticatedUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,24 +44,26 @@ public class EmailTemplateController {
     }
 
     @GetMapping
-    public List<TemplateResponse> list() {
-        return service.list().stream().map(TemplateResponse::from).toList();
+    public List<TemplateResponse> list(@AuthenticationPrincipal AuthenticatedUser user) {
+        return service.list(user.id()).stream().map(TemplateResponse::from).toList();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public TemplateResponse create(@Valid @RequestBody TemplateRequest request) {
-        return TemplateResponse.from(service.create(request.name(), request.subject(), request.body()));
+    public TemplateResponse create(@AuthenticationPrincipal AuthenticatedUser user,
+                                   @Valid @RequestBody TemplateRequest request) {
+        return TemplateResponse.from(service.create(user.id(), request.name(), request.subject(), request.body()));
     }
 
     @PutMapping("/{id}")
-    public TemplateResponse update(@PathVariable UUID id, @Valid @RequestBody TemplateRequest request) {
-        return TemplateResponse.from(service.update(id, request.name(), request.subject(), request.body()));
+    public TemplateResponse update(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id,
+                                   @Valid @RequestBody TemplateRequest request) {
+        return TemplateResponse.from(service.update(user.id(), id, request.name(), request.subject(), request.body()));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID id) {
-        service.delete(id);
+    public void delete(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id) {
+        service.delete(user.id(), id);
     }
 }

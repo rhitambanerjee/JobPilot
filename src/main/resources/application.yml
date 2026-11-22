@@ -44,3 +44,15 @@ tracker:
     poll-ms: 5000
     batch-size: 10
     max-attempts: 3
+  auth:
+    max-failed-logins: 5      # per email, then locked out for lockout-minutes (in memory, single instance)
+    lockout-minutes: 15
+
+server:
+  servlet:
+    session:
+      timeout: 7d
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}   # set to true when served over HTTPS

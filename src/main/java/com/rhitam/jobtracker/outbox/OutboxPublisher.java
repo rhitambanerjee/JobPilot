@@ -9,7 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Writes an event row in the caller's transaction. MANDATORY makes it impossible to publish an event
- * outside a business transaction (which would defeat the guarantee).
+ * outside a business transaction (which would defeat the guarantee). The event records its owner so the
+ * rule engine only ever matches that user's own rules.
  */
 @Component
 public class OutboxPublisher {
@@ -23,7 +24,8 @@ public class OutboxPublisher {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void publish(String aggregateType, UUID aggregateId, String eventType, Map<String, Object> payload) {
-        repository.save(new OutboxEvent(aggregateType, aggregateId, eventType, payload, clock.instant()));
+    public void publish(UUID userId, String aggregateType, UUID aggregateId, String eventType,
+                        Map<String, Object> payload) {
+        repository.save(new OutboxEvent(userId, aggregateType, aggregateId, eventType, payload, clock.instant()));
     }
 }

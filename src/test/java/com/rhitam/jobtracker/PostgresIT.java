@@ -1,5 +1,9 @@
 package com.rhitam.jobtracker;
 
+import com.rhitam.jobtracker.auth.User;
+import com.rhitam.jobtracker.auth.UserRepository;
+import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,10 +35,20 @@ public abstract class PostgresIT {
     @Autowired
     protected JdbcTemplate jdbc;
 
+    @Autowired
+    protected UserRepository users;
+
     @BeforeEach
     void cleanDatabase() {
         jdbc.execute("TRUNCATE applications, audit_logs, outbox_events, rules, rule_executions, "
                 + "checklists, reminders, notifications, notification_settings, outgoing_emails CASCADE");
-        jdbc.update("DELETE FROM email_templates WHERE built_in = FALSE");
+        jdbc.update("DELETE FROM email_templates WHERE built_in = FALSE");   // keep the built-in ones
+        jdbc.update("DELETE FROM users");                                    // incl. the migration's placeholder owner
+    }
+
+    /** A fresh account; returns its id. */
+    protected UUID newUser() {
+        return users.save(new User("user-" + UUID.randomUUID() + "@example.com", "not-a-real-hash", null, Instant.now()))
+                .getId();
     }
 }

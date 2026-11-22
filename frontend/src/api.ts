@@ -1,5 +1,6 @@
 import type {
   AppNotification,
+  AuthUser,
   Application,
   AuditLog,
   Checklist,
@@ -23,11 +24,29 @@ export class ApiError extends Error {
   }
 }
 
+/** Called when the server says the session is gone, so the app can show the login page. */
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
+/** The server sets an XSRF-TOKEN cookie; write requests must echo it back in the X-XSRF-TOKEN header. */
+function csrfToken(): string | null {
+  const entry = document.cookie.split("; ").find((c) => c.startsWith("XSRF-TOKEN="));
+  return entry ? decodeURIComponent(entry.slice("XSRF-TOKEN=".length)) : null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch("/api" + path, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
+  const method = (init?.method ?? "GET").toUpperCase();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (method !== "GET" && method !== "HEAD") {
+    const token = csrfToken();
+    if (token) headers["X-XSRF-TOKEN"] = token;
+  }
+  const res = await fetch("/api" + path, { ...init, headers, credentials: "same-origin" });
+  if (res.status === 401 && !path.startsWith("/auth/")) {
+    onUnauthorized?.();
+  }
   if (!res.ok) {
     // the backend answers with RFC 7807 problem details: { detail, errors? }
     let message = `${res.status} ${res.statusText}`;
@@ -54,6 +73,12 @@ const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const api = {
+  me: () => request<AuthUser>("/auth/me"),
+  login: (email: string, password: string) => post<AuthUser>("/auth/login", { email, password }),
+  register: (email: string, password: string, displayName: string | null) =>
+    post<AuthUser>("/auth/register", { email, password, displayName }),
+  logout: () => request<void>("/auth/logout", { method: "POST" }),
+
   listApplications: () => request<Application[]>("/applications"),
   createApplication: (body: NewApplication) => post<Application>("/applications", body),
   changeStage: (id: string, stage: Stage) => post<Application>(`/applications/${id}/stage`, { stage }),

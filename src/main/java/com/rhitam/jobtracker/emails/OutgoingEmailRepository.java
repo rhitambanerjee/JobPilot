@@ -8,9 +8,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface OutgoingEmailRepository extends JpaRepository<OutgoingEmail, UUID> {
 
-    List<OutgoingEmail> findByApplicationIdOrderByCreatedAtDesc(UUID applicationId);
+    List<OutgoingEmail> findByApplicationIdAndUserIdOrderByCreatedAtDesc(UUID applicationId, UUID userId);
 
-    /** SKIP LOCKED batch, same pattern as the outbox. Call inside a transaction. */
+    /** Background delivery: spans all users on purpose (each row knows its owner). Call inside a transaction. */
     @Query(value = """
             SELECT * FROM outgoing_emails
             WHERE status = 'PENDING'

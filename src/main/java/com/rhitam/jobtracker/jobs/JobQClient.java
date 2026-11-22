@@ -23,9 +23,9 @@ public class JobQClient {
 
     private static final String INSERT = """
             INSERT INTO rule_executions
-                (id, idempotency_key, rule_id, application_id, action_type, params,
+                (id, idempotency_key, rule_id, user_id, application_id, action_type, params,
                  status, attempts, max_attempts, next_run_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?::jsonb, 'PENDING', 0, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, 'PENDING', 0, ?, ?, ?, ?)
             ON CONFLICT (idempotency_key) DO UPDATE
                 SET status = 'PENDING', next_run_at = EXCLUDED.next_run_at, updated_at = EXCLUDED.updated_at
                 WHERE rule_executions.status = 'SKIPPED'
@@ -51,6 +51,7 @@ public class JobQClient {
                 UUID.randomUUID(),
                 request.idempotencyKey(),
                 request.ruleId(),
+                request.userId(),
                 request.applicationId(),
                 request.actionType(),
                 toJson(request),

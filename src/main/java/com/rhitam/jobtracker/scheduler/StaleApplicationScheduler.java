@@ -50,7 +50,7 @@ public class StaleApplicationScheduler {
         List<Application> idle = applications.findStale(EnumSet.of(Stage.APPLIED, Stage.SCREENING), cutoff);
         for (Application application : idle) {
             long daysIdle = Duration.between(application.getLastActivityAt(), now).toDays();
-            outbox.publish("APPLICATION", application.getId(), EventTypes.APPLICATION_STALE, Map.of(
+            outbox.publish(application.getUserId(), "APPLICATION", application.getId(), EventTypes.APPLICATION_STALE, Map.of(
                     "applicationId", application.getId().toString(),
                     "company", application.getCompany(),
                     "role", application.getRole(),

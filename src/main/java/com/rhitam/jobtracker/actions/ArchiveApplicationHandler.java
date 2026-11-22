@@ -25,10 +25,10 @@ public class ArchiveApplicationHandler implements ActionHandler {
 
     @Override
     public void execute(ActionContext context) {
-        Application application = applications.get(context.applicationId());
+        Application application = applications.get(context.userId(), context.applicationId());
         if (application.getStage() == Stage.ARCHIVED) {
             return;   // already done: handlers should be safe to run twice
         }
-        applications.changeStage(context.applicationId(), Stage.ARCHIVED, ACTOR);
+        applications.changeStage(context.userId(), context.applicationId(), Stage.ARCHIVED, ACTOR);
     }
 }

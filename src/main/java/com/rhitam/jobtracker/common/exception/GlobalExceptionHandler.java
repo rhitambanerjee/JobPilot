@@ -46,6 +46,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "The record was modified by someone else. Reload and retry.");
     }
 
+    @ExceptionHandler(UnauthorizedException.class)
+    public ProblemDetail unauthorized(UnauthorizedException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
+    }
+
+    @ExceptionHandler(TooManyAttemptsException.class)
+    public ProblemDetail tooManyAttempts(TooManyAttemptsException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());
+    }
+
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
                                                                   HttpHeaders headers, HttpStatusCode status,

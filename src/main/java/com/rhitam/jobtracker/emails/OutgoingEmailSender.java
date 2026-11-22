@@ -1,5 +1,6 @@
 package com.rhitam.jobtracker.emails;
 
+import com.rhitam.jobtracker.auth.UserRepository;
 import com.rhitam.jobtracker.notifications.NotificationService;
 import java.time.Clock;
 import java.util.List;
@@ -15,10 +16,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Delivers queued follow-up emails (the "background job sends the mail" part). Same shape as the other
- * pollers: lock a small batch with SKIP LOCKED, try each one, record the outcome. At-least-once: a crash
- * right after SMTP accepts a message can send that one email again on restart.
- * The user gets an in-app notification when an email is sent, or when it finally fails.
+ * Delivers queued follow-up emails. Every user's email goes out through the app's one SMTP account, so each
+ * message gets that user's own account address as Reply-To: HR's reply lands in the user's inbox, not ours.
+ * Same shape as the other pollers: lock a small batch (SKIP LOCKED), try each one, record the outcome.
+ * At-least-once: a crash right after SMTP accepts a message can send that one email again on restart.
  */
 @Component
 public class OutgoingEmailSender {
@@ -26,6 +27,7 @@ public class OutgoingEmailSender {
     private static final Logger log = LoggerFactory.getLogger(OutgoingEmailSender.class);
 
     private final OutgoingEmailRepository repository;
+    private final UserRepository users;
     private final ObjectProvider<JavaMailSender> mailSender;
     private final NotificationService notifications;
     private final TransactionTemplate tx;
@@ -34,12 +36,14 @@ public class OutgoingEmailSender {
     private final int batchSize;
     private final int maxAttempts;
 
-    public OutgoingEmailSender(OutgoingEmailRepository repository, ObjectProvider<JavaMailSender> mailSender,
-                               NotificationService notifications, TransactionTemplate tx, Clock clock,
+    public OutgoingEmailSender(OutgoingEmailRepository repository, UserRepository users,
+                               ObjectProvider<JavaMailSender> mailSender, NotificationService notifications,
+                               TransactionTemplate tx, Clock clock,
                                @Value("${tracker.mail.from:${spring.mail.username:job-tracker@localhost}}") String from,
                                @Value("${tracker.outgoing.batch-size:10}") int batchSize,
                                @Value("${tracker.outgoing.max-attempts:3}") int maxAttempts) {
         this.repository = repository;
+        this.users = users;
         this.mailSender = mailSender;
         this.notifications = notifications;
         this.tx = tx;
@@ -68,6 +72,7 @@ public class OutgoingEmailSender {
                 try {
                     SimpleMailMessage mail = new SimpleMailMessage();
                     mail.setFrom(from);
+                    users.findById(email.getUserId()).ifPresent(owner -> mail.setReplyTo(owner.getEmail()));
                     mail.setTo(email.getToAddress());
                     mail.setSubject(email.getSubject());
                     mail.setText(email.getBody());
@@ -88,7 +93,7 @@ public class OutgoingEmailSender {
     }
 
     private void notifyOutcome(OutgoingEmail email, boolean sent) {
-        notifications.recordEmailOutcome(email.getApplicationId(), email.getRuleId(), email.getToAddress(),
-                sent, email.getLastError());
+        notifications.recordEmailOutcome(email.getUserId(), email.getApplicationId(), email.getRuleId(),
+                email.getToAddress(), sent, email.getLastError());
     }
 }

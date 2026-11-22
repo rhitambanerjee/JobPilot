@@ -19,6 +19,7 @@ import com.rhitam.jobtracker.rules.model.Trigger;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -36,10 +37,12 @@ class IdempotencyIT extends PostgresIT {
 
     @Test
     void deliveringTheSameEventTwiceProducesOneJobAndOneReminder() {
-        rules.save(new Rule("follow up", new Trigger(EventTypes.APPLICATION_CREATED), List.of(),
+        UUID userId = newUser();
+        rules.save(new Rule(userId, "follow up", new Trigger(EventTypes.APPLICATION_CREATED), List.of(),
                 List.of(new ActionSpec("create_reminder", Map.of("message", "Follow up", "daysFromNow", 7))),
                 true, Instant.now()));
-        Application app = applications.create(new CreateApplicationRequest("Rippling", "Backend Engineer", null, null, null, null));
+        Application app = applications.create(userId,
+                new CreateApplicationRequest("Rippling", "Backend Engineer", null, null, null, null));
         OutboxEvent event = outbox.findAll().get(0);
 
         assertEquals(1, ruleEngine.handle(event));   // first delivery enqueues
@@ -48,22 +51,24 @@ class IdempotencyIT extends PostgresIT {
 
         worker.runOnce();
         worker.runOnce();                            // nothing left to claim
-        assertEquals(1, reminders.findByApplicationId(app.getId()).size());
+        assertEquals(1, reminders.findByApplicationIdAndUserId(app.getId(), userId).size());
         assertEquals(1, executions.countByStatus(RuleExecution.Status.SUCCEEDED));
         assertEquals(1, notifications.count());      // one rule run -> exactly one notification
     }
 
     @Test
     void failingHandlerIsRetriedWithBackoffThenMarkedFailed() {
+        UUID userId = newUser();
+        UUID appId = UUID.randomUUID();
         // an unknown action type makes ActionRegistry.get() throw inside the worker
         jdbc.update("""
-                INSERT INTO applications (id, company, role, stage, last_activity_at, created_at, updated_at)
-                VALUES ('00000000-0000-0000-0000-000000000001','X','Y','APPLIED', now(), now(), now())""");
+                INSERT INTO applications (id, user_id, company, role, stage, last_activity_at, created_at, updated_at)
+                VALUES (?, ?, 'X', 'Y', 'APPLIED', now(), now(), now())""", appId, userId);
         jdbc.update("""
-                INSERT INTO rule_executions (id, idempotency_key, rule_id, application_id, action_type, status,
+                INSERT INTO rule_executions (id, idempotency_key, rule_id, user_id, application_id, action_type, status,
                     attempts, max_attempts, next_run_at, created_at, updated_at)
-                VALUES (gen_random_uuid(), 'k1', gen_random_uuid(), '00000000-0000-0000-0000-000000000001',
-                    'does_not_exist', 'PENDING', 0, 2, now(), now(), now())""");
+                VALUES (gen_random_uuid(), 'k1', gen_random_uuid(), ?, ?, 'does_not_exist', 'PENDING', 0, 2,
+                    now(), now(), now())""", userId, appId);
 
         worker.runOnce();   // attempt 1 fails -> PENDING with backoff
         assertEquals(1, executions.countByStatus(RuleExecution.Status.PENDING));

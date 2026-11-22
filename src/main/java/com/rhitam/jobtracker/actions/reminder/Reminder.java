@@ -16,6 +16,7 @@ public class Reminder {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    private UUID userId;
     private UUID applicationId;
     private String message;
     private Instant dueAt;
@@ -25,7 +26,8 @@ public class Reminder {
     protected Reminder() {
     }
 
-    public Reminder(UUID applicationId, String message, Instant dueAt, Instant now) {
+    public Reminder(UUID userId, UUID applicationId, String message, Instant dueAt, Instant now) {
+        this.userId = userId;
         this.applicationId = applicationId;
         this.message = message;
         this.dueAt = dueAt;

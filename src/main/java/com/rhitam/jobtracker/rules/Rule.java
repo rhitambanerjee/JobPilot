@@ -24,6 +24,7 @@ public class Rule {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    private UUID userId;
     private String name;
     private boolean enabled;
 
@@ -42,8 +43,9 @@ public class Rule {
     protected Rule() {
     }
 
-    public Rule(String name, Trigger trigger, List<Condition> conditions, List<ActionSpec> actions,
+    public Rule(UUID userId, String name, Trigger trigger, List<Condition> conditions, List<ActionSpec> actions,
                 boolean enabled, Instant now) {
+        this.userId = userId;
         this.name = name;
         this.trigger = trigger;
         this.conditions = conditions;
@@ -57,6 +59,7 @@ public class Rule {
     }
 
     public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
     public String getName() { return name; }
     public boolean isEnabled() { return enabled; }
     public Trigger getTrigger() { return trigger; }

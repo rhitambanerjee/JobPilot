@@ -1,9 +1,11 @@
 package com.rhitam.jobtracker.notifications;
 
+import com.rhitam.jobtracker.auth.AuthenticatedUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -32,19 +34,20 @@ public class NotificationSettingsController {
     }
 
     @GetMapping
-    public SettingsResponse get() {
-        return SettingsResponse.from(service.getSettings());
+    public SettingsResponse get(@AuthenticationPrincipal AuthenticatedUser user) {
+        return SettingsResponse.from(service.getSettings(user.id()));
     }
 
     @PutMapping
-    public SettingsResponse save(@Valid @RequestBody SettingsRequest request) {
-        return SettingsResponse.from(service.saveSettings(request.email(), request.emailEnabled()));
+    public SettingsResponse save(@AuthenticationPrincipal AuthenticatedUser user,
+                                 @Valid @RequestBody SettingsRequest request) {
+        return SettingsResponse.from(service.saveSettings(user.id(), request.email(), request.emailEnabled()));
     }
 
     /** Creates a test notification (and emails it). */
     @PostMapping("/test")
     @ResponseStatus(HttpStatus.CREATED)
-    public Notification sendTest() {
-        return service.sendTest();
+    public Notification sendTest(@AuthenticationPrincipal AuthenticatedUser user) {
+        return service.sendTest(user.id());
     }
 }

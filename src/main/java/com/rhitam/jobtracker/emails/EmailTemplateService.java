@@ -24,19 +24,19 @@ public class EmailTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public List<EmailTemplate> list() {
-        return templates.findAllByOrderByBuiltInDescNameAsc();
+    public List<EmailTemplate> list(UUID userId) {
+        return templates.findVisible(userId);
     }
 
     @Transactional
-    public EmailTemplate create(String name, String subject, String body) {
+    public EmailTemplate create(UUID userId, String name, String subject, String body) {
         check(subject, body);
-        return templates.save(new EmailTemplate(name.trim(), subject.trim(), body, clock.instant()));
+        return templates.save(new EmailTemplate(userId, name.trim(), subject.trim(), body, clock.instant()));
     }
 
     @Transactional
-    public EmailTemplate update(UUID id, String name, String subject, String body) {
-        EmailTemplate template = find(id);
+    public EmailTemplate update(UUID userId, UUID id, String name, String subject, String body) {
+        EmailTemplate template = find(userId, id);
         if (template.isBuiltIn()) {
             throw new BadRequestException("Built-in templates can't be edited. Save a copy and edit that instead.");
         }
@@ -46,12 +46,12 @@ public class EmailTemplateService {
     }
 
     @Transactional
-    public void delete(UUID id) {
-        EmailTemplate template = find(id);
+    public void delete(UUID userId, UUID id) {
+        EmailTemplate template = find(userId, id);
         if (template.isBuiltIn()) {
             throw new BadRequestException("Built-in templates can't be deleted.");
         }
-        List<String> users = rules.findAll().stream()
+        List<String> users = rules.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .filter(rule -> usesTemplate(rule, id))
                 .map(Rule::getName)
                 .toList();
@@ -62,8 +62,10 @@ public class EmailTemplateService {
         templates.delete(template);
     }
 
-    private EmailTemplate find(UUID id) {
-        return templates.findById(id).orElseThrow(() -> new NotFoundException("Template " + id + " not found"));
+    /** Another user's template is "not found", exactly like one that doesn't exist. */
+    private EmailTemplate find(UUID userId, UUID id) {
+        return templates.findVisible(userId, id)
+                .orElseThrow(() -> new NotFoundException("Template " + id + " not found"));
     }
 
     private static void check(String subject, String body) {

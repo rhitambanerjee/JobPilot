@@ -22,6 +22,7 @@ public class AuditLog {
 
     private String entityType;
     private UUID entityId;
+    private UUID userId;
     private String action;
     private String actor;
 
@@ -33,9 +34,10 @@ public class AuditLog {
     protected AuditLog() {
     }
 
-    public static AuditLog of(String entityType, UUID entityId, String action, String actor,
+    public static AuditLog of(UUID userId, String entityType, UUID entityId, String action, String actor,
                               Map<String, Object> details, Instant now) {
         AuditLog log = new AuditLog();
+        log.userId = userId;
         log.entityType = entityType;
         log.entityId = entityId;
         log.action = action;

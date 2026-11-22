@@ -16,6 +16,7 @@ public class EmailTemplate {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    private UUID userId;   // null for the built-in templates everyone shares
     private String name;
     private String subject;
     private String body;
@@ -27,7 +28,8 @@ public class EmailTemplate {
     }
 
     /** User-saved template (built-ins are only created by the migration). */
-    public EmailTemplate(String name, String subject, String body, Instant now) {
+    public EmailTemplate(UUID userId, String name, String subject, String body, Instant now) {
+        this.userId = userId;
         this.name = name;
         this.subject = subject;
         this.body = body;
@@ -44,6 +46,7 @@ public class EmailTemplate {
     }
 
     public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
     public String getName() { return name; }
     public String getSubject() { return subject; }
     public String getBody() { return body; }

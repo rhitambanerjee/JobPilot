@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /** params: message (string, default "Follow up"), daysFromNow (number >= 0, default 3). */
@@ -29,7 +30,7 @@ public class CreateReminderHandler implements ActionHandler {
     }
 
     @Override
-    public void validate(Map<String, Object> params) {
+    public void validate(UUID userId, Map<String, Object> params) {
         Object days = params.get("daysFromNow");
         if (days != null && !(days instanceof Number n && n.intValue() >= 0)) {
             throw new BadRequestException("create_reminder: 'daysFromNow' must be a number >= 0");
@@ -42,6 +43,6 @@ public class CreateReminderHandler implements ActionHandler {
         String message = params.get("message") instanceof String m && !m.isBlank() ? m : "Follow up";
         int days = params.get("daysFromNow") instanceof Number n ? n.intValue() : 3;
         Instant now = clock.instant();
-        repository.save(new Reminder(context.applicationId(), message, now.plus(Duration.ofDays(days)), now));
+        repository.save(new Reminder(context.userId(), context.applicationId(), message, now.plus(Duration.ofDays(days)), now));
     }
 }

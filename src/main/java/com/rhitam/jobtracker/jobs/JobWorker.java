@@ -89,9 +89,9 @@ public class JobWorker {
                     return;
                 }
                 registry.get(job.getActionType())
-                        .execute(new ActionContext(job.getApplicationId(), job.getRuleId(), job.getParams()));
+                        .execute(new ActionContext(job.getUserId(), job.getApplicationId(), job.getRuleId(), job.getParams()));
                 // same transaction as the action: the notification exists if and only if the action committed
-                notifications.recordRuleRun(job.getRuleId(), job.getApplicationId(), job.getActionType());
+                notifications.recordRuleRun(job.getUserId(), job.getRuleId(), job.getApplicationId(), job.getActionType());
                 job.markSucceeded(clock.instant());
             });
         } catch (ActionSkippedException e) {
@@ -100,14 +100,14 @@ public class JobWorker {
                 boolean firstTime = job.getLastError() == null;
                 job.markSkipped(e.getMessage(), clock.instant());
                 if (firstTime) {
-                    notifications.recordProblem(job.getRuleId(), job.getApplicationId(), e.getMessage());
+                    notifications.recordProblem(job.getUserId(), job.getRuleId(), job.getApplicationId(), e.getMessage());
                 }
             }));
         } catch (NonRetryableActionException e) {
             // can never work as configured: fail now instead of burning retries
             tx.executeWithoutResult(status -> repository.findById(id).ifPresent(job -> {
                 job.markExhausted(e.getMessage(), clock.instant());
-                notifications.recordProblem(job.getRuleId(), job.getApplicationId(), e.getMessage());
+                notifications.recordProblem(job.getUserId(), job.getRuleId(), job.getApplicationId(), e.getMessage());
             }));
         } catch (RuntimeException e) {
             log.warn("Job {} failed: {}", id, e.toString());

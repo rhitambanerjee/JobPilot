@@ -19,6 +19,7 @@ public class Checklist {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    private UUID userId;
     private UUID applicationId;
     private String title;
 
@@ -30,7 +31,8 @@ public class Checklist {
     protected Checklist() {
     }
 
-    public Checklist(UUID applicationId, String title, List<String> items, Instant now) {
+    public Checklist(UUID userId, UUID applicationId, String title, List<String> items, Instant now) {
+        this.userId = userId;
         this.applicationId = applicationId;
         this.title = title;
         this.items = items;

@@ -6,6 +6,7 @@ import com.rhitam.jobtracker.common.exception.BadRequestException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /** params: title (string, optional), items (list of strings, optional). */
@@ -31,7 +32,7 @@ public class CreateChecklistHandler implements ActionHandler {
     }
 
     @Override
-    public void validate(Map<String, Object> params) {
+    public void validate(UUID userId, Map<String, Object> params) {
         Object items = params.get("items");
         if (items != null && !(items instanceof List<?> list && list.stream().allMatch(String.class::isInstance))) {
             throw new BadRequestException("create_checklist: 'items' must be a list of strings");
@@ -45,6 +46,6 @@ public class CreateChecklistHandler implements ActionHandler {
         List<String> items = params.get("items") instanceof List<?> raw
                 ? raw.stream().map(String::valueOf).toList()
                 : DEFAULT_ITEMS;
-        repository.save(new Checklist(context.applicationId(), title, items, clock.instant()));
+        repository.save(new Checklist(context.userId(), context.applicationId(), title, items, clock.instant()));
     }
 }

@@ -1,6 +1,7 @@
 package com.rhitam.jobtracker.outbox;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.rhitam.jobtracker.PostgresIT;
 import com.rhitam.jobtracker.application.Application;
@@ -18,6 +19,7 @@ import com.rhitam.jobtracker.rules.model.Trigger;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -32,16 +34,18 @@ class OutboxPollerIT extends PostgresIT {
 
     @Test
     void stageChangeWritesAuditAndEvent_andPollerTurnsMatchingRuleIntoAJob() {
-        rules.save(new Rule("interview prep", new Trigger(EventTypes.APPLICATION_STAGE_CHANGED),
+        UUID userId = newUser();
+        rules.save(new Rule(userId, "interview prep", new Trigger(EventTypes.APPLICATION_STAGE_CHANGED),
                 List.of(new Condition("toStage", Operator.EQ, "INTERVIEW")),
                 List.of(new ActionSpec("create_checklist", Map.of("title", "Interview prep"))),
                 true, Instant.now()));
 
-        Application app = applications.create(new CreateApplicationRequest("Rippling", "Backend Engineer", null, null, null, null));
-        applications.changeStage(app.getId(), Stage.INTERVIEW, "test");
+        Application app = applications.create(userId,
+                new CreateApplicationRequest("Rippling", "Backend Engineer", null, null, null, null));
+        applications.changeStage(userId, app.getId(), Stage.INTERVIEW, "test");
 
         // one transaction produced: audit rows (created + stage change) and outbox events (same two)
-        assertEquals(2, audit.findByEntityIdOrderByCreatedAtDesc(app.getId()).size());
+        assertEquals(2, audit.findByEntityIdAndUserIdOrderByCreatedAtDesc(app.getId(), userId).size());
         assertEquals(2, outbox.countByStatus(OutboxEvent.Status.PENDING));
 
         assertEquals(2, poller.poll());
@@ -53,12 +57,14 @@ class OutboxPollerIT extends PostgresIT {
 
     @Test
     void illegalTransitionRollsBackEverything() {
-        Application app = applications.create(new CreateApplicationRequest("Rippling", "Backend Engineer", null, null, null, null));
+        UUID userId = newUser();
+        Application app = applications.create(userId,
+                new CreateApplicationRequest("Rippling", "Backend Engineer", null, null, null, null));
         long outboxBefore = outbox.count();
         long auditBefore = audit.count();
 
-        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
-                () -> applications.changeStage(app.getId(), Stage.OFFER, "test"));   // APPLIED -> OFFER not allowed
+        assertThrows(RuntimeException.class,
+                () -> applications.changeStage(userId, app.getId(), Stage.OFFER, "test"));   // APPLIED -> OFFER not allowed
 
         assertEquals(outboxBefore, outbox.count());
         assertEquals(auditBefore, audit.count());

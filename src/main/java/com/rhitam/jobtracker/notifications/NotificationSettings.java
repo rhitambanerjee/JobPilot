@@ -4,16 +4,15 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.UUID;
 
-/** The single settings row (id is always 1): where to send email and whether the user agreed to it. */
+/** One row per user: where to send email and whether they agreed to it. */
 @Entity
 @Table(name = "notification_settings")
 public class NotificationSettings {
 
-    public static final int SINGLETON_ID = 1;
-
     @Id
-    private Integer id = SINGLETON_ID;
+    private UUID userId;
 
     private String email;
     private boolean emailEnabled;
@@ -22,7 +21,8 @@ public class NotificationSettings {
     protected NotificationSettings() {
     }
 
-    public NotificationSettings(String email, boolean emailEnabled, Instant now) {
+    public NotificationSettings(UUID userId, String email, boolean emailEnabled, Instant now) {
+        this.userId = userId;
         update(email, emailEnabled, now);
     }
 
@@ -37,7 +37,7 @@ public class NotificationSettings {
         return emailEnabled && email != null && !email.isBlank();
     }
 
-    public Integer getId() { return id; }
+    public UUID getUserId() { return userId; }
     public String getEmail() { return email; }
     public boolean isEmailEnabled() { return emailEnabled; }
     public Instant getUpdatedAt() { return updatedAt; }

@@ -31,7 +31,7 @@ public class RuleEngine {
     /** @return how many NEW jobs were enqueued (duplicates from re-delivery don't count) */
     public int handle(OutboxEvent event) {
         int enqueued = 0;
-        for (Rule rule : rules.findByEnabledTrue()) {
+        for (Rule rule : rules.findByUserIdAndEnabledTrue(event.getUserId())) {
             if (!rule.getTrigger().eventType().equals(event.getEventType())) {
                 continue;
             }
@@ -48,7 +48,7 @@ public class RuleEngine {
                         ? k : String.valueOf(event.getId());
                 String key = rule.getId() + ":" + dedupe + ":" + i;
                 boolean isNew = jobQ.enqueue(new JobRequest(
-                        key, rule.getId(), event.getAggregateId(), action.type(), action.params()));
+                        event.getUserId(), key, rule.getId(), event.getAggregateId(), action.type(), action.params()));
                 if (isNew) {
                     enqueued++;
                     log.debug("Rule '{}' queued {} for {}", rule.getName(), action.type(), event.getAggregateId());

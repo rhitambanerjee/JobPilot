@@ -20,6 +20,7 @@ import com.rhitam.jobtracker.rules.model.Trigger;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -40,17 +41,17 @@ class NotificationIT extends PostgresIT {
     @Autowired NotificationEmailSender emailSender;
 
     /** One rule that reacts to a new application, one application, then run the whole pipeline once. */
-    private void runRulePipeline() {
-        rules.save(new Rule("follow up", new Trigger(EventTypes.APPLICATION_CREATED), List.of(),
+    private void runRulePipeline(UUID userId) {
+        rules.save(new Rule(userId, "follow up", new Trigger(EventTypes.APPLICATION_CREATED), List.of(),
                 List.of(new ActionSpec("create_reminder", Map.of("message", "Follow up"))), true, Instant.now()));
-        applications.create(new CreateApplicationRequest("Rippling", "Backend Engineer", null, null, null, null));
+        applications.create(userId, new CreateApplicationRequest("Rippling", "Backend Engineer", null, null, null, null));
         poller.poll();
         worker.runOnce();
     }
 
     @Test
     void ruleRunCreatesInAppNotification_andNoEmailWithoutOptIn() {
-        runRulePipeline();
+        runRulePipeline(newUser());
 
         List<Notification> all = notifications.findAll();
         assertEquals(1, all.size());
@@ -62,8 +63,9 @@ class NotificationIT extends PostgresIT {
 
     @Test
     void optedInUserGetsTheNotificationByEmail() {
-        settings.save(new NotificationSettings("me@example.com", true, Instant.now()));
-        runRulePipeline();
+        UUID userId = newUser();
+        settings.save(new NotificationSettings(userId, "me@example.com", true, Instant.now()));
+        runRulePipeline(userId);
 
         Notification n = notifications.findAll().get(0);
         assertEquals(Notification.EmailStatus.PENDING, n.getEmailStatus());
@@ -77,9 +79,10 @@ class NotificationIT extends PostgresIT {
 
     @Test
     void emailIsRetriedThenMarkedFailed_butTheInAppNotificationSurvives() {
-        settings.save(new NotificationSettings("me@example.com", true, Instant.now()));
+        UUID userId = newUser();
+        settings.save(new NotificationSettings(userId, "me@example.com", true, Instant.now()));
         doThrow(new MailSendException("smtp down")).when(mailSender).send(any(SimpleMailMessage.class));
-        runRulePipeline();
+        runRulePipeline(userId);
         Notification n = notifications.findAll().get(0);
 
         emailSender.sendPending();   // attempt 1 -> still PENDING

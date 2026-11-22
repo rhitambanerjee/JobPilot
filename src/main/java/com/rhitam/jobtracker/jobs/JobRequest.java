@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public record JobRequest(
+        UUID userId,
         String idempotencyKey,
         UUID ruleId,
         UUID applicationId,

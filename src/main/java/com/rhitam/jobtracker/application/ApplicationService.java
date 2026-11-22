@@ -16,9 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Use-case layer. Every state change does three things in ONE transaction:
- * update the aggregate, write an audit row, write an outbox event.
- * Either all three commit or none do - that is the whole point of the outbox pattern.
+ * Use-case layer. Every method takes the owner's userId explicitly: controllers pass the logged-in user,
+ * background jobs pass the owner stored on the job. Loading by (id, userId) means someone else's application
+ * is indistinguishable from one that doesn't exist.
+ *
+ * Every state change does three things in ONE transaction: update the aggregate, write an audit row,
+ * write an outbox event. Either all three commit or none do.
  */
 @Service
 public class ApplicationService {
@@ -39,19 +42,19 @@ public class ApplicationService {
     }
 
     @Transactional
-    public Application create(CreateApplicationRequest req) {
+    public Application create(UUID userId, CreateApplicationRequest req) {
         Stage initial = req.stage() == null ? Stage.APPLIED : req.stage();
         if (initial != Stage.APPLIED && initial != Stage.WISHLIST) {
             throw new BadRequestException("New applications must start as WISHLIST or APPLIED");
         }
         Instant now = clock.instant();
-        Application toSave = new Application(req.company(), req.role(), req.jobUrl(), req.notes(), initial, now);
+        Application toSave = new Application(userId, req.company(), req.role(), req.jobUrl(), req.notes(), initial, now);
         toSave.updateContactEmail(clean(req.contactEmail()), now);
         Application saved = applications.save(toSave);
 
-        audit.save(AuditLog.of("APPLICATION", saved.getId(), "CREATED", ACTOR_USER,
+        audit.save(AuditLog.of(userId, "APPLICATION", saved.getId(), "CREATED", ACTOR_USER,
                 Map.of("company", saved.getCompany(), "role", saved.getRole(), "stage", initial.name()), now));
-        outbox.publish("APPLICATION", saved.getId(), EventTypes.APPLICATION_CREATED, Map.of(
+        outbox.publish(userId, "APPLICATION", saved.getId(), EventTypes.APPLICATION_CREATED, Map.of(
                 "applicationId", saved.getId().toString(),
                 "company", saved.getCompany(),
                 "role", saved.getRole(),
@@ -60,14 +63,14 @@ public class ApplicationService {
     }
 
     @Transactional
-    public Application changeStage(UUID id, Stage next, String actor) {
-        Application application = get(id);
+    public Application changeStage(UUID userId, UUID id, Stage next, String actor) {
+        Application application = get(userId, id);
         Instant now = clock.instant();
         Stage previous = application.moveTo(next, now);
 
-        audit.save(AuditLog.of("APPLICATION", id, "STAGE_CHANGED", actor,
+        audit.save(AuditLog.of(userId, "APPLICATION", id, "STAGE_CHANGED", actor,
                 Map.of("from", previous.name(), "to", next.name()), now));
-        outbox.publish("APPLICATION", id, EventTypes.APPLICATION_STAGE_CHANGED, Map.of(
+        outbox.publish(userId, "APPLICATION", id, EventTypes.APPLICATION_STAGE_CHANGED, Map.of(
                 "applicationId", id.toString(),
                 "company", application.getCompany(),
                 "role", application.getRole(),
@@ -78,12 +81,12 @@ public class ApplicationService {
 
     /** Saves (or clears, when blank) the HR / careers address that follow-up emails are sent to. */
     @Transactional
-    public Application updateContactEmail(UUID id, String email) {
-        Application application = get(id);
+    public Application updateContactEmail(UUID userId, UUID id, String email) {
+        Application application = get(userId, id);
         Instant now = clock.instant();
         String cleaned = clean(email);
         application.updateContactEmail(cleaned, now);
-        audit.save(AuditLog.of("APPLICATION", id, "CONTACT_UPDATED", ACTOR_USER,
+        audit.save(AuditLog.of(userId, "APPLICATION", id, "CONTACT_UPDATED", ACTOR_USER,
                 Map.of("contactEmail", cleaned == null ? "" : cleaned), now));
         return application;
     }
@@ -93,15 +96,15 @@ public class ApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Application get(UUID id) {
-        return applications.findById(id)
+    public Application get(UUID userId, UUID id) {
+        return applications.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotFoundException("Application " + id + " not found"));
     }
 
     @Transactional(readOnly = true)
-    public List<Application> list(Stage stage) {
+    public List<Application> list(UUID userId, Stage stage) {
         return stage == null
-                ? applications.findAllByOrderByUpdatedAtDesc()
-                : applications.findByStageOrderByUpdatedAtDesc(stage);
+                ? applications.findByUserIdOrderByUpdatedAtDesc(userId)
+                : applications.findByUserIdAndStageOrderByUpdatedAtDesc(userId, stage);
     }
 }

@@ -28,6 +28,7 @@ import com.rhitam.jobtracker.scheduler.StaleApplicationScheduler;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,13 +53,13 @@ class FollowUpEmailIT extends PostgresIT {
     @Autowired RuleExecutionRepository executions;
     @Autowired NotificationRepository notifications;
 
-    private EmailTemplate newTemplate() {
-        return templates.save(new EmailTemplate("test template", "Hello {{company}}",
+    private EmailTemplate newTemplate(UUID userId) {
+        return templates.save(new EmailTemplate(userId, "test template", "Hello {{company}}",
                 "Hi {{recruiterName}}, re {{role}} after {{daysIdle}} days. {{yourName}}", Instant.now()));
     }
 
-    private void sevenDayFollowUpRule(EmailTemplate template) {
-        rules.save(new Rule("7-day follow up", new Trigger(EventTypes.APPLICATION_STALE),
+    private void sevenDayFollowUpRule(UUID userId, EmailTemplate template) {
+        rules.save(new Rule(userId, "7-day follow up", new Trigger(EventTypes.APPLICATION_STALE),
                 List.of(new Condition("stage", Operator.EQ, "APPLIED"), new Condition("daysIdle", Operator.GTE, 7)),
                 List.of(new ActionSpec("send_email", Map.of(
                         "templateId", template.getId().toString(),
@@ -66,8 +67,8 @@ class FollowUpEmailIT extends PostgresIT {
                 true, Instant.now()));
     }
 
-    private Application idleApplication(String contactEmail) {
-        Application app = applications.create(
+    private Application idleApplication(UUID userId, String contactEmail) {
+        Application app = applications.create(userId,
                 new CreateApplicationRequest("Acme", "Backend Engineer", null, null, null, contactEmail));
         jdbc.update("UPDATE applications SET last_activity_at = now() - interval '8 days 1 hour' WHERE id = ?", app.getId());
         return app;
@@ -82,8 +83,9 @@ class FollowUpEmailIT extends PostgresIT {
 
     @Test
     void idleApplicationGetsOneFollowUpEmail_andOnlyOnce() {
-        sevenDayFollowUpRule(newTemplate());
-        idleApplication("hr@acme.com");
+        UUID userId = newUser();
+        sevenDayFollowUpRule(userId, newTemplate(userId));
+        idleApplication(userId, "hr@acme.com");
 
         runOneDay();
         assertEquals(1, outgoing.count());
@@ -92,6 +94,7 @@ class FollowUpEmailIT extends PostgresIT {
         ArgumentCaptor<SimpleMailMessage> sent = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(sent.capture());
         assertEquals("hr@acme.com", sent.getValue().getTo()[0]);
+        assertEquals(users.findById(userId).orElseThrow().getEmail(), sent.getValue().getReplyTo());   // HR replies go to the user
         assertEquals("Hello Acme", sent.getValue().getSubject());
         assertTrue(sent.getValue().getText().contains("Hi Priya, re Backend Engineer after 8 days. Rhitam"));
 
@@ -103,8 +106,9 @@ class FollowUpEmailIT extends PostgresIT {
 
     @Test
     void missingContactEmailSkipsOnce_thenSendsAfterAddressIsSaved() {
-        sevenDayFollowUpRule(newTemplate());
-        Application app = idleApplication(null);
+        UUID userId = newUser();
+        sevenDayFollowUpRule(userId, newTemplate(userId));
+        Application app = idleApplication(userId, null);
 
         runOneDay();
         assertEquals(1, executions.countByStatus(RuleExecution.Status.SKIPPED));
@@ -115,7 +119,7 @@ class FollowUpEmailIT extends PostgresIT {
         assertEquals(1, executions.countByStatus(RuleExecution.Status.SKIPPED));
         assertEquals(1, notifications.count());
 
-        applications.updateContactEmail(app.getId(), "hr@acme.com");
+        applications.updateContactEmail(userId, app.getId(), "hr@acme.com");
         runOneDay();                                     // the skipped job is revived and now succeeds
         assertEquals(1, executions.countByStatus(RuleExecution.Status.SUCCEEDED));
         assertEquals(1, outgoing.count());
@@ -123,11 +127,12 @@ class FollowUpEmailIT extends PostgresIT {
 
     @Test
     void builtInAndInUseTemplatesCannotBeDeleted() {
-        EmailTemplate builtIn = templates.findAllByOrderByBuiltInDescNameAsc().get(0);
-        assertThrows(BadRequestException.class, () -> templateService.delete(builtIn.getId()));
+        UUID userId = newUser();
+        EmailTemplate builtIn = templates.findVisible(userId).get(0);
+        assertThrows(BadRequestException.class, () -> templateService.delete(userId, builtIn.getId()));
 
-        EmailTemplate mine = newTemplate();
-        sevenDayFollowUpRule(mine);
-        assertThrows(BadRequestException.class, () -> templateService.delete(mine.getId()));
+        EmailTemplate mine = newTemplate(userId);
+        sevenDayFollowUpRule(userId, mine);
+        assertThrows(BadRequestException.class, () -> templateService.delete(userId, mine.getId()));
     }
 }

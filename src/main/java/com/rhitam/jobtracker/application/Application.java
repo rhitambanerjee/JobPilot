@@ -25,6 +25,7 @@ public class Application {
     private String role;
     private String jobUrl;
     private String contactEmail;
+    private UUID userId;
 
     @Enumerated(EnumType.STRING)
     private Stage stage;
@@ -41,7 +42,8 @@ public class Application {
     protected Application() {
     }
 
-    public Application(String company, String role, String jobUrl, String notes, Stage stage, Instant now) {
+    public Application(UUID userId, String company, String role, String jobUrl, String notes, Stage stage, Instant now) {
+        this.userId = userId;
         this.company = company;
         this.role = role;
         this.jobUrl = jobUrl;
@@ -76,6 +78,7 @@ public class Application {
     }
 
     public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
     public String getCompany() { return company; }
     public String getRole() { return role; }
     public String getJobUrl() { return jobUrl; }

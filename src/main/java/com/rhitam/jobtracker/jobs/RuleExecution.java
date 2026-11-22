@@ -26,6 +26,7 @@ public class RuleExecution {
     private UUID id;
 
     private String idempotencyKey;
+    private UUID userId;
     private UUID ruleId;
     private UUID applicationId;
     private String actionType;
@@ -92,6 +93,7 @@ public class RuleExecution {
 
     public UUID getId() { return id; }
     public String getIdempotencyKey() { return idempotencyKey; }
+    public UUID getUserId() { return userId; }
     public UUID getRuleId() { return ruleId; }
     public UUID getApplicationId() { return applicationId; }
     public String getActionType() { return actionType; }

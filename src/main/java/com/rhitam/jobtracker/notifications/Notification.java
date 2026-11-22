@@ -24,6 +24,7 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    private UUID userId;
     private UUID applicationId;
     private UUID ruleId;
     private String title;
@@ -43,7 +44,8 @@ public class Notification {
     }
 
     /** @param emailTo recipient, or null when the user has not opted in to email */
-    public Notification(UUID applicationId, UUID ruleId, String title, String message, String emailTo, Instant now) {
+    public Notification(UUID userId, UUID applicationId, UUID ruleId, String title, String message, String emailTo, Instant now) {
+        this.userId = userId;
         this.applicationId = applicationId;
         this.ruleId = ruleId;
         this.title = title;
@@ -81,6 +83,7 @@ public class Notification {
     }
 
     public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
     public UUID getApplicationId() { return applicationId; }
     public UUID getRuleId() { return ruleId; }
     public String getTitle() { return title; }

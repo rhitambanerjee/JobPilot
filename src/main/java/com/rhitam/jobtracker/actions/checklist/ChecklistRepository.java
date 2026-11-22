@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ChecklistRepository extends JpaRepository<Checklist, UUID> {
 
-    List<Checklist> findByApplicationId(UUID applicationId);
+    List<Checklist> findByApplicationIdAndUserId(UUID applicationId, UUID userId);
 }

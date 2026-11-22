@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.rhitam.jobtracker.common.exception.InvalidTransitionException;
 import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class StageTransitionTest {
@@ -44,7 +45,7 @@ class StageTransitionTest {
 
     @Test
     void entityRejectsIllegalMoveAndKeepsItsStage() {
-        Application a = new Application("Rippling", "Backend Engineer", null, null, Stage.APPLIED, Instant.now());
+        Application a = new Application(UUID.randomUUID(), "Rippling", "Backend Engineer", null, null, Stage.APPLIED, Instant.now());
         assertThrows(InvalidTransitionException.class, () -> a.moveTo(Stage.OFFER, Instant.now()));
         assertEquals(Stage.APPLIED, a.getStage());
     }
@@ -53,7 +54,7 @@ class StageTransitionTest {
     void legalMoveReturnsPreviousStageAndBumpsActivity() {
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
         Instant t1 = t0.plusSeconds(60);
-        Application a = new Application("Rippling", "Backend Engineer", null, null, Stage.APPLIED, t0);
+        Application a = new Application(UUID.randomUUID(), "Rippling", "Backend Engineer", null, null, Stage.APPLIED, t0);
         assertEquals(Stage.APPLIED, a.moveTo(Stage.SCREENING, t1));
         assertEquals(t1, a.getLastActivityAt());
     }

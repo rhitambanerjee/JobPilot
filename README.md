@@ -61,7 +61,7 @@ Tests: `mvn test` (unit) and `mvn verify` (adds the Testcontainers integration t
 - **Stuck jobs** are recovered by lock expiry (`tracker.jobs.lock-timeout-seconds`); a job that keeps crashing
   workers ends up `FAILED` once attempts run out.
 - **Rule conditions are AND-only** with four operators (`eq`, `in`, `gt`, `contains`). Enough for the use case; OR/NOT would be a new `Condition` type.
-- No auth: this is a single-user tool. Add Spring Security before exposing it.
+- Accounts are email + password only (see "Accounts" below): no email verification and no password reset yet.
 
 ## Frontend
 
@@ -135,4 +135,35 @@ To try it without waiting a week (dev profile runs the daily check every minute)
 
 ```sql
 UPDATE applications SET last_activity_at = now() - interval '8 days' WHERE company = 'Acme';
+```
+
+## Accounts (multi-user)
+
+Every user has their own account and sees only their own applications, rules, templates, reminders, notifications
+and sent emails.
+
+- **Login:** `POST /api/auth/register`, `/login`, `/logout`, `GET /api/auth/me`. Passwords are hashed with BCrypt; the
+  login is a session cookie (`JSESSIONID`, HttpOnly, SameSite=Lax). Sessions live in memory, so a backend restart logs
+  everyone out. Set `SESSION_COOKIE_SECURE=true` when serving over HTTPS.
+- **CSRF:** protection stays on. The server sets an `XSRF-TOKEN` cookie and the React app echoes it in the
+  `X-XSRF-TOKEN` header on every write.
+- **Brute force:** 5 wrong passwords for one email locks that email for 15 minutes (in memory, single instance).
+- **Ownership:** every user-owned table has a `user_id`, and every query filters on it. Loading another user's record
+  returns 404, the same as a record that doesn't exist. Built-in email templates are the one shared thing.
+- **Background jobs:** the owner travels with each event and job (`outbox_events.user_id`, `rule_executions.user_id`).
+  The rule engine only loads the event owner's rules, and the daily stale check publishes each event under that
+  application's owner. `TenantIsolationIT` proves a user's rule never fires on someone else's data.
+- **Email sending:** all follow-ups still go out through the app's one SMTP account, but each message gets the user's
+  own login email as **Reply-To**, so HR's reply reaches the user.
+- **Existing data:** migration `V8` assigns rows created before accounts existed to a placeholder owner. The **first
+  account you register takes them over** automatically, and the placeholder is deleted.
+
+Calling the API without the UI needs the cookie and CSRF token:
+
+```bash
+curl -c jar.txt http://localhost:8080/api/auth/me          # 401, but sets the XSRF-TOKEN cookie
+TOKEN=$(grep XSRF-TOKEN jar.txt | awk '{print $7}')
+curl -b jar.txt -c jar.txt -H "X-XSRF-TOKEN: $TOKEN" -H "Content-Type: application/json" \
+  -d '{"email":"me@example.com","password":"correct-horse-1"}' http://localhost:8080/api/auth/register
+curl -b jar.txt http://localhost:8080/api/applications
 ```

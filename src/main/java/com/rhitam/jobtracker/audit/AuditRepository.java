@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AuditRepository extends JpaRepository<AuditLog, UUID> {
 
-    List<AuditLog> findByEntityIdOrderByCreatedAtDesc(UUID entityId);
+    List<AuditLog> findByEntityIdAndUserIdOrderByCreatedAtDesc(UUID entityId, UUID userId);
 
-    List<AuditLog> findTop100ByOrderByCreatedAtDesc();
+    List<AuditLog> findTop100ByUserIdOrderByCreatedAtDesc(UUID userId);
 }
