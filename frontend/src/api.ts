@@ -9,6 +9,7 @@ import type {
   NewRule,
   NotificationSettings,
   OutgoingEmail,
+  RegisterResult,
   Reminder,
   Rule,
   Stage,
@@ -19,6 +20,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    /** machine-readable reason from the server, e.g. "EMAIL_NOT_VERIFIED" */
+    public code?: string,
   ) {
     super(message);
   }
@@ -50,8 +53,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     // the backend answers with RFC 7807 problem details: { detail, errors? }
     let message = `${res.status} ${res.statusText}`;
+    let code: string | undefined;
     try {
       const problem = await res.json();
+      code = problem.code;
       if (problem.detail) message = problem.detail;
       if (problem.errors) {
         message +=
@@ -63,7 +68,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* body wasn't JSON; keep the status line */
     }
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res.status, code);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -76,7 +81,11 @@ export const api = {
   me: () => request<AuthUser>("/auth/me"),
   login: (email: string, password: string) => post<AuthUser>("/auth/login", { email, password }),
   register: (email: string, password: string, displayName: string | null) =>
-    post<AuthUser>("/auth/register", { email, password, displayName }),
+    post<RegisterResult>("/auth/register", { email, password, displayName }),
+  verifyEmail: (token: string) => post<void>("/auth/verify-email", { token }),
+  resendVerification: (email: string) => post<void>("/auth/resend-verification", { email }),
+  forgotPassword: (email: string) => post<void>("/auth/forgot-password", { email }),
+  resetPassword: (token: string, newPassword: string) => post<void>("/auth/reset-password", { token, newPassword }),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
 
   listApplications: () => request<Application[]>("/applications"),

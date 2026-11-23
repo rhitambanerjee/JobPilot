@@ -11,10 +11,11 @@ import org.springframework.security.core.userdetails.UserDetails;
  * The logged-in user as Spring Security sees it, and what controllers receive via @AuthenticationPrincipal.
  * The copy kept in the session never contains the password hash (see withoutPassword()).
  */
-public record AuthenticatedUser(UUID id, String email, String passwordHash, String displayName) implements UserDetails {
+public record AuthenticatedUser(UUID id, String email, String passwordHash, String displayName,
+                                boolean emailVerified, int sessionVersion) implements UserDetails {
 
     public AuthenticatedUser withoutPassword() {
-        return new AuthenticatedUser(id, email, "", displayName);
+        return new AuthenticatedUser(id, email, "", displayName, emailVerified, sessionVersion);
     }
 
     @Override

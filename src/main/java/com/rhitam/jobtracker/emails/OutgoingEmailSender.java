@@ -35,13 +35,15 @@ public class OutgoingEmailSender {
     private final String from;
     private final int batchSize;
     private final int maxAttempts;
+    private final boolean logAccountEmails;
 
     public OutgoingEmailSender(OutgoingEmailRepository repository, UserRepository users,
                                ObjectProvider<JavaMailSender> mailSender, NotificationService notifications,
                                TransactionTemplate tx, Clock clock,
                                @Value("${tracker.mail.from:${spring.mail.username:job-tracker@localhost}}") String from,
                                @Value("${tracker.outgoing.batch-size:10}") int batchSize,
-                               @Value("${tracker.outgoing.max-attempts:3}") int maxAttempts) {
+                               @Value("${tracker.outgoing.max-attempts:3}") int maxAttempts,
+                               @Value("${tracker.auth.log-emails:false}") boolean logAccountEmails) {
         this.repository = repository;
         this.users = users;
         this.mailSender = mailSender;
@@ -51,6 +53,7 @@ public class OutgoingEmailSender {
         this.from = from;
         this.batchSize = batchSize;
         this.maxAttempts = maxAttempts;
+        this.logAccountEmails = logAccountEmails;
     }
 
     @Scheduled(fixedDelayString = "${tracker.outgoing.poll-ms:5000}")
@@ -64,6 +67,9 @@ public class OutgoingEmailSender {
         Integer handled = tx.execute(status -> {
             List<OutgoingEmail> batch = repository.lockPending(batchSize);
             for (OutgoingEmail email : batch) {
+                if (logAccountEmails && email.getKind() == OutgoingEmail.Kind.ACCOUNT) {
+                    log.info("DEV account email to {}\nSubject: {}\n{}", email.getToAddress(), email.getSubject(), email.getBody());
+                }
                 if (sender == null) {
                     email.failPermanently("Mail server is not configured (set SPRING_MAIL_HOST and related settings)");
                     notifyOutcome(email, false);
@@ -72,7 +78,9 @@ public class OutgoingEmailSender {
                 try {
                     SimpleMailMessage mail = new SimpleMailMessage();
                     mail.setFrom(from);
-                    users.findById(email.getUserId()).ifPresent(owner -> mail.setReplyTo(owner.getEmail()));
+                    if (email.getKind() == OutgoingEmail.Kind.FOLLOW_UP) {   // account mail is from us, not from the user
+                        users.findById(email.getUserId()).ifPresent(owner -> mail.setReplyTo(owner.getEmail()));
+                    }
                     mail.setTo(email.getToAddress());
                     mail.setSubject(email.getSubject());
                     mail.setText(email.getBody());
@@ -93,6 +101,9 @@ public class OutgoingEmailSender {
     }
 
     private void notifyOutcome(OutgoingEmail email, boolean sent) {
+        if (email.getKind() == OutgoingEmail.Kind.ACCOUNT) {
+            return;   // no application to attach an in-app notification to
+        }
         notifications.recordEmailOutcome(email.getUserId(), email.getApplicationId(), email.getRuleId(),
                 email.getToAddress(), sent, email.getLastError());
     }

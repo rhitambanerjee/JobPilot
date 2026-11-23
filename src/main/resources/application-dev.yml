@@ -19,6 +19,10 @@ tracker:
     cron: "0 * * * * *"   # every minute, to see it work during development
   notifications:
     email-poll-ms: 2000
+  outgoing:
+    poll-ms: 1000
+  auth:
+    log-emails: true   # prints verification / reset links in the backend log, handy when no mail server is running
 
 logging:
   level:

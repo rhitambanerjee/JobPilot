@@ -19,6 +19,7 @@ public class AppUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         User user = users.findByEmailIgnoreCase(email.trim().toLowerCase(Locale.ROOT))
                 .orElseThrow(() -> new UsernameNotFoundException("No such user"));
-        return new AuthenticatedUser(user.getId(), user.getEmail(), user.getPasswordHash(), user.getDisplayName());
+        return new AuthenticatedUser(user.getId(), user.getEmail(), user.getPasswordHash(), user.getDisplayName(),
+                user.isEmailVerified(), user.getSessionVersion());
     }
 }

@@ -16,7 +16,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * Base class for integration tests. One Postgres container is shared by every IT class (started once per
  * JVM), schedulers are off so tests call the pollers explicitly, and tables are wiped before each test.
  */
-@SpringBootTest(properties = "tracker.scheduling.enabled=false")
+@SpringBootTest(properties = {"tracker.scheduling.enabled=false", "tracker.auth.require-email-verification=false"})
 public abstract class PostgresIT {
 
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");

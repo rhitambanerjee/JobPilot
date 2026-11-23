@@ -17,6 +17,9 @@ public class OutgoingEmail {
 
     public enum Status { PENDING, SENT, FAILED }
 
+    /** FOLLOW_UP = a rule emailing HR for an application; ACCOUNT = verification / password-reset mail. */
+    public enum Kind { FOLLOW_UP, ACCOUNT }
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -30,6 +33,9 @@ public class OutgoingEmail {
 
     @Enumerated(EnumType.STRING)
     private Status status;
+
+    @Enumerated(EnumType.STRING)
+    private Kind kind;
 
     private int attempts;
     private String lastError;
@@ -47,7 +53,15 @@ public class OutgoingEmail {
         this.subject = subject;
         this.body = body;
         this.status = Status.PENDING;
+        this.kind = Kind.FOLLOW_UP;
         this.createdAt = now;
+    }
+
+    /** An account email has no application and no rule. */
+    public static OutgoingEmail account(UUID userId, String toAddress, String subject, String body, Instant now) {
+        OutgoingEmail email = new OutgoingEmail(userId, null, null, toAddress, subject, body, now);
+        email.kind = Kind.ACCOUNT;
+        return email;
     }
 
     public void markSent(Instant now) {
@@ -79,6 +93,7 @@ public class OutgoingEmail {
     public String getSubject() { return subject; }
     public String getBody() { return body; }
     public Status getStatus() { return status; }
+    public Kind getKind() { return kind; }
     public int getAttempts() { return attempts; }
     public String getLastError() { return lastError; }
     public Instant getCreatedAt() { return createdAt; }

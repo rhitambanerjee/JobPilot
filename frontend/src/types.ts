@@ -140,3 +140,11 @@ export interface AuthUser {
   email: string;
   displayName: string | null;
 }
+
+/** verificationRequired = true means no session was started: the user must open the emailed link first. */
+export interface RegisterResult {
+  id: string;
+  email: string;
+  displayName: string | null;
+  verificationRequired: boolean;
+}

@@ -47,6 +47,13 @@ tracker:
   auth:
     max-failed-logins: 5      # per email, then locked out for lockout-minutes (in memory, single instance)
     lockout-minutes: 15
+    require-email-verification: true   # false = log in straight after registering (no mail needed)
+    verification-ttl-hours: 24
+    reset-ttl-minutes: 60
+    max-emails-per-hour: 3             # resend-verification / forgot-password, per email address
+    log-emails: false                  # DEV ONLY: also log account emails (they contain the links)
+  app:
+    base-url: ${APP_BASE_URL:http://localhost:5173}   # where the links in emails point (the React app)
 
 server:
   servlet:

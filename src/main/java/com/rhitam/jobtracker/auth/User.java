@@ -20,6 +20,8 @@ public class User {
     private String passwordHash;
     private String displayName;
     private Instant createdAt;
+    private boolean emailVerified;
+    private int sessionVersion;
 
     protected User() {
     }
@@ -31,7 +33,19 @@ public class User {
         this.createdAt = now;
     }
 
+    public void markVerified() {
+        this.emailVerified = true;
+    }
+
+    /** Also bumps sessionVersion, which invalidates every login session this user currently has. */
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+        this.sessionVersion++;
+    }
+
     public UUID getId() { return id; }
+    public boolean isEmailVerified() { return emailVerified; }
+    public int getSessionVersion() { return sessionVersion; }
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }
     public String getDisplayName() { return displayName; }

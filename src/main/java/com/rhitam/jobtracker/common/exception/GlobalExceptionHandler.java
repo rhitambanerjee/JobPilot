@@ -51,6 +51,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
     }
 
+    /** 403 with a machine-readable code so the UI can offer "resend verification email". */
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ProblemDetail emailNotVerified(EmailNotVerifiedException e) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
+        pd.setProperty("code", "EMAIL_NOT_VERIFIED");
+        return pd;
+    }
+
     @ExceptionHandler(TooManyAttemptsException.class)
     public ProblemDetail tooManyAttempts(TooManyAttemptsException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());

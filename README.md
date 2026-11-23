@@ -61,7 +61,7 @@ Tests: `mvn test` (unit) and `mvn verify` (adds the Testcontainers integration t
 - **Stuck jobs** are recovered by lock expiry (`tracker.jobs.lock-timeout-seconds`); a job that keeps crashing
   workers ends up `FAILED` once attempts run out.
 - **Rule conditions are AND-only** with four operators (`eq`, `in`, `gt`, `contains`). Enough for the use case; OR/NOT would be a new `Condition` type.
-- Accounts are email + password only (see "Accounts" below): no email verification and no password reset yet.
+- Accounts are email + password with email verification and emailed password reset (see "Accounts" below). No social login or 2FA.
 
 ## Frontend
 
@@ -167,3 +167,32 @@ curl -b jar.txt -c jar.txt -H "X-XSRF-TOKEN: $TOKEN" -H "Content-Type: applicati
   -d '{"email":"me@example.com","password":"correct-horse-1"}' http://localhost:8080/api/auth/register
 curl -b jar.txt http://localhost:8080/api/applications
 ```
+
+### Email verification and password reset
+
+- **Verification:** registering creates an *unverified* account and emails a link. There is **no session until the link is
+  opened**, so signing up with someone else's address gets you nothing (and it no longer lets you send HR emails with
+  their address as Reply-To). Logging in before verifying returns `403 EMAIL_NOT_VERIFIED`; the login page then offers
+  "Resend verification email". Links expire after 24 hours.
+- **Password reset:** "Forgot password?" emails a link that expires in 1 hour and works once. Resetting also **logs out
+  every existing session** (`users.session_version` is bumped; `SessionVersionFilter` rejects older sessions) and marks
+  the email verified, since the user just proved they own the mailbox.
+- **Tokens:** 256-bit random, delivered only in the email link. The database stores a SHA-256 hash, so reading the
+  database doesn't give anyone a usable link. Using a token is one atomic `UPDATE ... RETURNING`, so a link can't be used
+  twice, even by two simultaneous requests. A new link of a type replaces the old one.
+- **The link carries the token in the URL fragment** (`/#verify=...`, `/#reset=...`), which browsers never send to servers
+  or in Referer headers. The app removes it from the address bar after use.
+- **No account enumeration on the email forms:** "forgot password" and "resend" return 202 whether or not the address has
+  an account, and are limited to 3 per address per hour. (Registration still says an email is taken, a deliberate trade-off.)
+- **Delivery:** account emails go through the same queue as every other email (`outgoing_emails`, `kind = ACCOUNT`), so a
+  slow or down mail server never blocks a request, and failures are retried.
+- **Existing accounts** (created before this feature) are marked verified by migration `V9`, so nobody is locked out.
+  Pre-accounts data is now claimed by the first account that is *verified*, not just registered.
+
+Configuration (`application.yml`): `tracker.auth.require-email-verification` (set `false` to log in straight after
+registering, no mail needed), `verification-ttl-hours`, `reset-ttl-minutes`, `max-emails-per-hour`, and
+`tracker.app.base-url` / `APP_BASE_URL` (where the email links point; the React app's address).
+
+Trying it locally: run Mailpit (`docker compose up -d mailpit`) and open http://localhost:8025 to read the emails. The dev
+profile also prints each verification / reset link in the backend log (`tracker.auth.log-emails`), so it works even without
+Mailpit. Never enable `log-emails` in production, because those links are credentials.

@@ -1,0 +1,59 @@
+### NOTE: the API now requires a logged-in session plus a CSRF token, which these plain HTTP examples do not handle.
+### Use the web UI, or the curl sequence in the README ("Accounts"). The request bodies below are still accurate.
+
+### Variables (VS Code REST Client / IntelliJ HTTP client)
+@base = http://localhost:8080
+
+### 1. Create a rule: when an application reaches INTERVIEW, create a prep checklist and a reminder
+POST {{base}}/api/rules
+Content-Type: application/json
+
+{
+  "name": "Interview prep",
+  "trigger": { "eventType": "application.stage_changed" },
+  "conditions": [ { "field": "toStage", "op": "eq", "value": "INTERVIEW" } ],
+  "actions": [
+    { "type": "create_checklist", "params": { "title": "Interview prep", "items": ["Review system design notes", "Prepare 3 project stories", "Research the team"] } },
+    { "type": "create_reminder", "params": { "message": "Send thank-you note", "daysFromNow": 1 } }
+  ]
+}
+
+### 2. Create a rule: nudge when an application has been idle more than 7 days
+POST {{base}}/api/rules
+Content-Type: application/json
+
+{
+  "name": "Follow up when idle",
+  "trigger": { "eventType": "application.stale" },
+  "conditions": [ { "field": "daysIdle", "op": "gt", "value": 7 } ],
+  "actions": [ { "type": "create_reminder", "params": { "message": "Follow up with recruiter", "daysFromNow": 0 } } ]
+}
+
+### 3. Create an application
+POST {{base}}/api/applications
+Content-Type: application/json
+
+{ "company": "Rippling", "role": "Backend Engineer", "jobUrl": "https://example.com/job/123" }
+
+### 4. Move it forward (replace the id)
+POST {{base}}/api/applications/PASTE-ID-HERE/stage
+Content-Type: application/json
+
+{ "stage": "SCREENING" }
+
+### 5. Illegal move (APPLIED -> OFFER) returns 409
+POST {{base}}/api/applications/PASTE-ID-HERE/stage
+Content-Type: application/json
+
+{ "stage": "OFFER" }
+
+### 6. Audit trail for one application
+GET {{base}}/api/audit?entityId=PASTE-ID-HERE
+
+### 7. Reminders that are due
+GET {{base}}/api/reminders?due=true
+
+### 8. List rules / applications
+GET {{base}}/api/rules
+###
+GET {{base}}/api/applications?stage=INTERVIEW

@@ -1,5 +1,6 @@
 package com.rhitam.jobtracker.auth;
 
+import com.rhitam.jobtracker.common.exception.EmailNotVerifiedException;
 import com.rhitam.jobtracker.common.exception.UnauthorizedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -15,6 +16,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -23,10 +25,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Register, log in, log out. The session cookie (JSESSIONID, HttpOnly) is the login. */
+/** Register, verify email, log in/out, reset password. The session cookie (JSESSIONID, HttpOnly) is the login. */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -40,35 +41,52 @@ public class AuthController {
     public record LoginRequest(@NotBlank String email, @NotBlank String password) {
     }
 
+    public record TokenRequest(@NotBlank String token) {
+    }
+
+    public record EmailRequest(@NotBlank @Email @Size(max = 320) String email) {
+    }
+
+    public record ResetPasswordRequest(@NotBlank String token, @NotBlank @Size(min = 8, max = 72) String newPassword) {
+    }
+
     public record UserResponse(UUID id, String email, String displayName) {
         static UserResponse from(AuthenticatedUser u) {
             return new UserResponse(u.id(), u.email(), u.displayName());
         }
     }
 
+    /** verificationRequired = true means NO session was started: the user must open the emailed link first. */
+    public record RegisterResponse(UUID id, String email, String displayName, boolean verificationRequired) {
+    }
+
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
-    private final UserService userService;
+    private final AccountService accounts;
     private final LoginThrottle throttle;
 
     public AuthController(AuthenticationManager authenticationManager,
                           SecurityContextRepository securityContextRepository,
-                          UserService userService, LoginThrottle throttle) {
+                          AccountService accounts, LoginThrottle throttle) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
-        this.userService = userService;
+        this.accounts = accounts;
         this.throttle = throttle;
     }
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse register(@Valid @RequestBody RegisterRequest request,
-                                 HttpServletRequest http, HttpServletResponse response) {
-        User user = userService.register(request.email(), request.password(), request.displayName());
-        AuthenticatedUser principal =
-                new AuthenticatedUser(user.getId(), user.getEmail(), "", user.getDisplayName());
-        startSession(principal, http, response);
-        return UserResponse.from(principal);
+    public RegisterResponse register(@Valid @RequestBody RegisterRequest request,
+                                     HttpServletRequest http, HttpServletResponse response) {
+        AccountService.Registration registration =
+                accounts.register(request.email(), request.password(), request.displayName());
+        User user = registration.user();
+        if (!registration.verificationRequired()) {
+            startSession(new AuthenticatedUser(user.getId(), user.getEmail(), "", user.getDisplayName(),
+                    user.isEmailVerified(), user.getSessionVersion()), http, response);
+        }
+        return new RegisterResponse(user.getId(), user.getEmail(), user.getDisplayName(),
+                registration.verificationRequired());
     }
 
     @PostMapping("/login")
@@ -86,9 +104,41 @@ public class AuthController {
             throw new UnauthorizedException("Invalid email or password");
         }
         throttle.reset(email);
-        AuthenticatedUser principal = ((AuthenticatedUser) result.getPrincipal()).withoutPassword();
+        AuthenticatedUser authenticated = (AuthenticatedUser) result.getPrincipal();
+        // checked only AFTER the password is right, so this can't be used to probe which emails are registered
+        if (accounts.verificationRequired() && !authenticated.emailVerified()) {
+            throw new EmailNotVerifiedException(
+                    "Please verify your email first. Open the link we sent you, or request a new one.");
+        }
+        AuthenticatedUser principal = authenticated.withoutPassword();
         startSession(principal, http, response);
         return UserResponse.from(principal);
+    }
+
+    @PostMapping("/verify-email")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void verifyEmail(@Valid @RequestBody TokenRequest request) {
+        accounts.verifyEmail(request.token());
+    }
+
+    /** 202 whether or not the address has an account. */
+    @PostMapping("/resend-verification")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void resendVerification(@Valid @RequestBody EmailRequest request) {
+        accounts.resendVerification(request.email());
+    }
+
+    /** 202 whether or not the address has an account. */
+    @PostMapping("/forgot-password")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void forgotPassword(@Valid @RequestBody EmailRequest request) {
+        accounts.requestPasswordReset(request.email());
+    }
+
+    @PostMapping("/reset-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        accounts.resetPassword(request.token(), request.newPassword());
     }
 
     @GetMapping("/me")

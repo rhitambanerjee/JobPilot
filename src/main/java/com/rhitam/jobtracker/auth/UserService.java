@@ -34,27 +34,37 @@ public class UserService {
         this.clock = clock;
     }
 
+    /** Creates an UNVERIFIED account. AccountService decides what happens next (email link, or straight in). */
     @Transactional
-    public User register(String email, String rawPassword, String displayName) {
+    public User create(String email, String rawPassword, String displayName) {
         String normalized = email.trim().toLowerCase(Locale.ROOT);
         if (users.existsByEmailIgnoreCase(normalized)) {
             throw new BadRequestException("An account with this email already exists");
         }
         String name = displayName == null || displayName.isBlank() ? null : displayName.trim();
-        User created;
         try {
-            created = users.saveAndFlush(new User(normalized, encoder.encode(rawPassword), name, clock.instant()));
+            return users.saveAndFlush(new User(normalized, encoder.encode(rawPassword), name, clock.instant()));
         } catch (DataIntegrityViolationException e) {   // two people registering the same email at once
             throw new BadRequestException("An account with this email already exists");
         }
-        claimExistingData(created);
-        return created;
     }
 
-    /** The very first account inherits everything that was created before accounts existed. */
-    private void claimExistingData(User first) {
-        boolean onlyPlaceholderBefore = users.existsById(LEGACY_USER_ID) && users.count() == 2;
-        if (!onlyPlaceholderBefore) {
+    /** Proves the person owns the mailbox. The first verified account also inherits pre-accounts data. */
+    @Transactional
+    public User markVerified(UUID userId) {
+        User user = users.findById(userId).orElseThrow(() -> new BadRequestException("Account not found"));
+        user.markVerified();
+        claimExistingData(user);
+        return user;
+    }
+
+    /**
+     * Rows that existed before accounts did belong to a placeholder owner. The first account to get verified
+     * (or to register, when verification is off) takes them over and the placeholder is deleted.
+     */
+    @Transactional
+    public void claimExistingData(User first) {
+        if (!users.existsById(LEGACY_USER_ID)) {
             return;
         }
         for (String table : OWNED_TABLES) {
