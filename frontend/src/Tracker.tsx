@@ -5,6 +5,7 @@ import { errorMessage } from "./util";
 import { btn, btnPrimary } from "./ui";
 import Board from "./components/Board";
 import ArchivePage from "./components/ArchivePage";
+import AnalyticsPage from "./components/AnalyticsPage";
 import ApplicationDrawer from "./components/ApplicationDrawer";
 import NewApplicationForm from "./components/NewApplicationForm";
 import RulesPage from "./components/RulesPage";
@@ -12,11 +13,12 @@ import TemplatesPage from "./components/TemplatesPage";
 import RemindersPage from "./components/RemindersPage";
 import NotificationsPage from "./components/NotificationsPage";
 
-type Tab = "board" | "archive" | "rules" | "templates" | "reminders" | "notifications";
+type Tab = "board" | "archive" | "insights" | "rules" | "templates" | "reminders" | "notifications";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "board", label: "Board" },
   { id: "archive", label: "Archive" },
+  { id: "insights", label: "Insights" },
   { id: "rules", label: "Rules" },
   { id: "templates", label: "Templates" },
   { id: "reminders", label: "Reminders" },
@@ -198,6 +200,7 @@ export default function Tracker({ user, onLogout }: { user: AuthUser; onLogout: 
           />
         )}
         {tab === "archive" && !loading && !loadFailed && <ArchivePage applications={archived} onOpen={setSelectedId} />}
+        {tab === "insights" && <AnalyticsPage />}
         {tab === "rules" && <RulesPage onError={setError} />}
         {tab === "templates" && <TemplatesPage onError={setError} />}
         {tab === "reminders" && (

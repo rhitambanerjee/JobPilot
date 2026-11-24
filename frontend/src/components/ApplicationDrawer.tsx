@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { Application, AuditLog, Checklist, OutgoingEmail, Reminder, Stage } from "../types";
 import { errorMessage, formatDate, formatDateTime, stageLabel } from "../util";
-import { btn, field, pill, sectionTitle } from "../ui";
+import { btn, btnPrimary, field, lbl, pill, sectionTitle } from "../ui";
 import { useDialog } from "../useDialog";
 
 interface Props {
@@ -17,6 +17,7 @@ function describe(log: AuditLog): string {
   const d = log.details;
   if (log.action === "STAGE_CHANGED") return `Moved ${stageLabel(String(d.from))} → ${stageLabel(String(d.to))}`;
   if (log.action === "CREATED") return `Created as ${stageLabel(String(d.stage))}`;
+  if (log.action === "DETAILS_UPDATED") return `Updated ${Object.keys(d).join(", ")}`;
   if (log.action === "CONTACT_UPDATED") return d.contactEmail ? `Contact email set to ${String(d.contactEmail)}` : "Contact email cleared";
   return log.action;
 }
@@ -34,7 +35,11 @@ export default function ApplicationDrawer({ application, onClose, onMove, onUpda
   const [emails, setEmails] = useState<OutgoingEmail[]>([]);
   const [contact, setContact] = useState(application.contactEmail ?? "");
   const [savingContact, setSavingContact] = useState(false);
-  const dialogRef = useDialog<HTMLElement>(onClose);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ company: "", role: "", jobUrl: "", notes: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+  // Escape first cancels an edit in progress; only a second press closes the drawer
+  const dialogRef = useDialog<HTMLElement>(() => (editing ? setEditing(false) : onClose()));
 
   useEffect(() => {
     setContact(application.contactEmail ?? "");
@@ -68,6 +73,35 @@ export default function ApplicationDrawer({ application, onClose, onMove, onUpda
       setReminders((rs) => rs.map((r) => (r.id === id ? updated : r)));
     } catch (e) {
       onError(errorMessage(e));
+    }
+  }
+
+  function startEdit() {
+    setDraft({
+      company: application.company,
+      role: application.role,
+      jobUrl: application.jobUrl ?? "",
+      notes: application.notes ?? "",
+    });
+    setEditing(true);
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingEdit(true);
+    try {
+      const updated = await api.updateApplication(application.id, {
+        company: draft.company.trim(),
+        role: draft.role.trim(),
+        jobUrl: draft.jobUrl.trim() || null,
+        notes: draft.notes.trim() || null,
+      });
+      onUpdated(updated);
+      setEditing(false);
+    } catch (err) {
+      onError(errorMessage(err)); // e.g. "The job link must start with http:// or https://"
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -118,8 +152,68 @@ export default function ApplicationDrawer({ application, onClose, onMove, onUpda
           </button>
         </div>
 
-        {application.notes && (
-          <p className="whitespace-pre-wrap rounded-xl bg-gray-50 p-3 text-sm text-gray-600">{application.notes}</p>
+        {editing ? (
+          <form onSubmit={saveEdit} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <label className={lbl}>
+              Company
+              <input
+                className={field}
+                value={draft.company}
+                onChange={(e) => setDraft({ ...draft, company: e.target.value })}
+                required
+                maxLength={200}
+              />
+            </label>
+            <label className={lbl}>
+              Role
+              <input
+                className={field}
+                value={draft.role}
+                onChange={(e) => setDraft({ ...draft, role: e.target.value })}
+                required
+                maxLength={200}
+              />
+            </label>
+            <label className={lbl}>
+              Job link
+              <input
+                className={field}
+                type="url"
+                value={draft.jobUrl}
+                onChange={(e) => setDraft({ ...draft, jobUrl: e.target.value })}
+                placeholder="https://…"
+              />
+            </label>
+            <label className={lbl}>
+              Notes
+              <textarea
+                className={field}
+                rows={4}
+                value={draft.notes}
+                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+                maxLength={5000}
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" className={btn} onClick={() => setEditing(false)}>
+                Cancel
+              </button>
+              <button className={btnPrimary} disabled={savingEdit || !draft.company.trim() || !draft.role.trim()}>
+                {savingEdit ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            {application.notes && (
+              <p className="whitespace-pre-wrap rounded-xl bg-gray-50 p-3 text-sm text-gray-600">{application.notes}</p>
+            )}
+            <div>
+              <button className={btn} onClick={startEdit}>
+                Edit details
+              </button>
+            </div>
+          </>
         )}
 
         <section className="flex flex-col gap-2.5">

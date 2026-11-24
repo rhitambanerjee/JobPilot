@@ -2,9 +2,11 @@ import type {
   AppNotification,
   AuthUser,
   Application,
+  ApplicationDetailsInput,
   AuditLog,
   Checklist,
   EmailTemplate,
+  FunnelReport,
   NewApplication,
   NewRule,
   NotificationSettings,
@@ -90,6 +92,9 @@ export const api = {
 
   listApplications: () => request<Application[]>("/applications"),
   createApplication: (body: NewApplication) => post<Application>("/applications", body),
+  updateApplication: (id: string, body: ApplicationDetailsInput) =>
+    request<Application>(`/applications/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  funnel: (weeks = 12) => request<FunnelReport>(`/analytics/funnel?weeks=${weeks}`),
   changeStage: (id: string, stage: Stage) => post<Application>(`/applications/${id}/stage`, { stage }),
 
   audit: (applicationId: string) => request<AuditLog[]>(`/audit?entityId=${applicationId}`),

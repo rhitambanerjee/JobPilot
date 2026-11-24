@@ -148,3 +148,41 @@ export interface RegisterResult {
   displayName: string | null;
   verificationRequired: boolean;
 }
+
+export interface ApplicationDetailsInput {
+  company: string;
+  role: string;
+  jobUrl: string | null;
+  notes: string | null;
+}
+
+export interface FunnelStep {
+  stage: Stage;
+  count: number;
+  percentOfApplied: number | null;
+  conversionFromPrevious: number | null;
+  medianDaysFromApplied: number | null;
+}
+
+export interface StageCount {
+  stage: Stage;
+  count: number;
+}
+
+export interface WeekCount {
+  weekStart: string; // ISO date of the Monday
+  count: number;
+}
+
+export interface FunnelReport {
+  totalApplications: number;
+  wishlist: number;
+  applied: number;
+  responded: number;
+  responseRatePercent: number | null;
+  medianDaysToFirstResponse: number | null;
+  funnel: FunnelStep[];
+  rejectedAfter: StageCount[];
+  currentByStage: StageCount[];
+  weekly: WeekCount[];
+}

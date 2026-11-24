@@ -3,6 +3,7 @@ package com.rhitam.jobtracker.application;
 import com.rhitam.jobtracker.application.dto.ApplicationResponse;
 import com.rhitam.jobtracker.application.dto.ChangeStageRequest;
 import com.rhitam.jobtracker.application.dto.CreateApplicationRequest;
+import com.rhitam.jobtracker.application.dto.UpdateApplicationRequest;
 import com.rhitam.jobtracker.application.dto.UpdateContactEmailRequest;
 import com.rhitam.jobtracker.auth.AuthenticatedUser;
 import jakarta.validation.Valid;
@@ -46,6 +47,12 @@ public class ApplicationController {
     @GetMapping("/{id}")
     public ApplicationResponse get(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id) {
         return ApplicationResponse.from(service.get(user.id(), id));
+    }
+
+    @PutMapping("/{id}")
+    public ApplicationResponse update(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id,
+                                      @Valid @RequestBody UpdateApplicationRequest request) {
+        return ApplicationResponse.from(service.updateDetails(user.id(), id, request));
     }
 
     @PutMapping("/{id}/contact-email")

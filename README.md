@@ -196,3 +196,26 @@ registering, no mail needed), `verification-ttl-hours`, `reset-ttl-minutes`, `ma
 Trying it locally: run Mailpit (`docker compose up -d mailpit`) and open http://localhost:8025 to read the emails. The dev
 profile also prints each verification / reset link in the backend log (`tracker.auth.log-emails`), so it works even without
 Mailpit. Never enable `log-emails` in production, because those links are credentials.
+
+## Funnel analytics (Insights tab)
+
+`GET /api/analytics/funnel?weeks=12` returns, for the logged-in user only: applications sent, response rate, median wait for a
+first reply, a five-step funnel (Applied, Screening, Interview, Offer, Accepted) with step-to-step conversion and median days
+from applying, where rejections happened, where everything sits right now, and applications sent per week.
+
+How it works: nothing new is stored. The numbers are rebuilt from the audit trail (`CREATED` and `STAGE_CHANGED` rows), which
+already records every stage move with a timestamp. `FunnelCalculator` is a pure function (no database, no clock, no Spring), so
+every figure is covered by a plain unit test (`FunnelCalculatorTest`).
+
+Definitions, also shown on the page: an application "reached" a stage if it was ever in it (moving on or archiving later doesn't
+undo that), and reaching a later stage counts for earlier ones too, because stages can be skipped. "Heard back" means it reached
+Screening or later, or was rejected after applying. Times are medians. Weeks start on Monday (UTC).
+
+## Editing an application
+
+`PUT /api/applications/{id}` edits company, role, job link and notes (stage and contact email keep their own endpoints).
+
+- It never touches the stage or `last_activity_at`, so fixing a typo can't reset the idle clock that follow-up rules use.
+- It writes one `DETAILS_UPDATED` audit row listing what changed, and nothing at all if nothing changed.
+- Job links must start with `http://` or `https://` (also enforced on create). The UI renders the link as clickable, so a
+  `javascript:` URL must never be stored.

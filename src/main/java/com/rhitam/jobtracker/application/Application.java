@@ -67,6 +67,18 @@ public class Application {
         return previous;
     }
 
+    /**
+     * Edits the descriptive fields only. Deliberately leaves lastActivityAt alone: fixing a typo or adding a note
+     * must not reset the idle clock that follow-up rules depend on.
+     */
+    public void updateDetails(String company, String role, String jobUrl, String notes, Instant now) {
+        this.company = company;
+        this.role = role;
+        this.jobUrl = jobUrl;
+        this.notes = notes;
+        this.updatedAt = now;
+    }
+
     public void markStaleNotified(Instant now) {
         this.staleNotifiedAt = now;
     }

@@ -1,6 +1,7 @@
 package com.rhitam.jobtracker.application;
 
 import com.rhitam.jobtracker.application.dto.CreateApplicationRequest;
+import com.rhitam.jobtracker.application.dto.UpdateApplicationRequest;
 import com.rhitam.jobtracker.audit.AuditLog;
 import com.rhitam.jobtracker.audit.AuditRepository;
 import com.rhitam.jobtracker.common.exception.BadRequestException;
@@ -9,8 +10,10 @@ import com.rhitam.jobtracker.outbox.EventTypes;
 import com.rhitam.jobtracker.outbox.OutboxPublisher;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +51,8 @@ public class ApplicationService {
             throw new BadRequestException("New applications must start as WISHLIST or APPLIED");
         }
         Instant now = clock.instant();
-        Application toSave = new Application(userId, req.company(), req.role(), req.jobUrl(), req.notes(), initial, now);
+        Application toSave = new Application(userId, req.company().trim(), req.role().trim(), cleanUrl(req.jobUrl()), clean(req.notes()),
+                initial, now);
         toSave.updateContactEmail(clean(req.contactEmail()), now);
         Application saved = applications.save(toSave);
 
@@ -79,6 +83,41 @@ public class ApplicationService {
         return application;
     }
 
+    /**
+     * Edits company, role, link and notes. Does not touch the stage or the idle clock, and writes an audit row
+     * only if something actually changed. No outbox event: nothing reacts to a typo fix.
+     */
+    @Transactional
+    public Application updateDetails(UUID userId, UUID id, UpdateApplicationRequest req) {
+        Application application = get(userId, id);
+        String company = req.company().trim();
+        String role = req.role().trim();
+        String jobUrl = cleanUrl(req.jobUrl());
+        String notes = clean(req.notes());
+
+        Map<String, Object> changes = new LinkedHashMap<>();
+        if (!company.equals(application.getCompany())) {
+            changes.put("company", application.getCompany() + " \u2192 " + company);
+        }
+        if (!role.equals(application.getRole())) {
+            changes.put("role", application.getRole() + " \u2192 " + role);
+        }
+        if (!Objects.equals(jobUrl, application.getJobUrl())) {
+            changes.put("jobUrl", "changed");
+        }
+        if (!Objects.equals(notes, application.getNotes())) {
+            changes.put("notes", "changed");
+        }
+        if (changes.isEmpty()) {
+            return application;
+        }
+
+        Instant now = clock.instant();
+        application.updateDetails(company, role, jobUrl, notes, now);
+        audit.save(AuditLog.of(userId, "APPLICATION", id, "DETAILS_UPDATED", ACTOR_USER, changes, now));
+        return application;
+    }
+
     /** Saves (or clears, when blank) the HR / careers address that follow-up emails are sent to. */
     @Transactional
     public Application updateContactEmail(UUID userId, UUID id, String email) {
@@ -89,6 +128,16 @@ public class ApplicationService {
         audit.save(AuditLog.of(userId, "APPLICATION", id, "CONTACT_UPDATED", ACTOR_USER,
                 Map.of("contactEmail", cleaned == null ? "" : cleaned), now));
         return application;
+    }
+
+    /** Only web links: the UI renders this as a clickable link, and "javascript:..." must never get that far. */
+    private static String cleanUrl(String url) {
+        String cleaned = clean(url);
+        if (cleaned != null && !cleaned.regionMatches(true, 0, "http://", 0, 7)
+                && !cleaned.regionMatches(true, 0, "https://", 0, 8)) {
+            throw new BadRequestException("The job link must start with http:// or https://");
+        }
+        return cleaned;
     }
 
     private static String clean(String email) {
