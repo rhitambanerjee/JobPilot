@@ -51,7 +51,7 @@ export default function Board({ applications, hasArchived, onOpen, onMove, onAdd
             key={stage}
             aria-label={`${stageLabel(stage)}, ${items.length} application${items.length === 1 ? "" : "s"}`}
             className={
-              "flex w-64 shrink-0 flex-col gap-3 overflow-y-auto rounded-2xl border bg-gray-50 p-3 transition " +
+              "flex w-64 min-h-40 self-start shrink-0 flex-col gap-3 overflow-y-auto rounded-2xl border bg-gray-50 p-3 transition " +
               (dragOver === stage ? "border-gray-400 ring-2 ring-gray-300" : "border-gray-200")
             }
             onDragOver={(e) => {
